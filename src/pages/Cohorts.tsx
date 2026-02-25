@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
 import { getDB } from "../lib/db";
-import { Plus, Download, XCircle, FileText, CheckCircle2, Palette, X, EyeOff, Eye, RotateCcw, RefreshCw } from "lucide-react";
-import * as XLSX from "xlsx";
+import { Plus, Download, XCircle, FileText, CheckCircle2, Palette, EyeOff, Eye, RotateCcw, RefreshCw } from "lucide-react";
+import { downloadExcel } from "../lib/excelUtils";
+import { CheckoutModal } from "../components/modals/CheckoutModal";
+import { RemarkModal } from "../components/modals/RemarkModal";
+import { ReturnModal } from "../components/modals/ReturnModal";
+import { DamageModal } from "../components/modals/DamageModal";
+import { ReplaceModal } from "../components/modals/ReplaceModal";
+import { UndoConfirmModal } from "../components/modals/UndoConfirmModal";
+import { ColorModal } from "../components/modals/ColorModal";
+import { useGlobalData } from "../contexts/GlobalDataContext";
 
-interface Cohort {
-    id: number;
-    name: string;
-    color: string | null;
-    sort_order: number;
-    is_hidden: number;
-    total_personnel: number;
-    checked_out_count: number;
-}
+
 
 interface PersonnelWithCheckout {
     checkout_id: number | null;
@@ -29,10 +29,9 @@ interface PersonnelWithCheckout {
 }
 
 export default function CohortsPage() {
-    const [cohorts, setCohorts] = useState<Cohort[]>([]);
+    const { cohorts, equipmentTypes, refreshData } = useGlobalData();
     const [selectedCohortId, setSelectedCohortId] = useState<number | null>(null);
     const [personnel, setPersonnel] = useState<PersonnelWithCheckout[]>([]);
-    const [equipmentTypes, setEquipmentTypes] = useState<string[]>([]);
     const [newCohortName, setNewCohortName] = useState("");
     const [isColorModalOpen, setIsColorModalOpen] = useState(false);
     const [showHiddenCohorts, setShowHiddenCohorts] = useState(false);
@@ -42,8 +41,8 @@ export default function CohortsPage() {
     const [showTagInput, setShowTagInput] = useState(false);
 
     useEffect(() => {
-        loadCohorts();
-    }, []);
+        refreshData();
+    }, [refreshData]);
 
     useEffect(() => {
         if (selectedCohortId) {
@@ -53,28 +52,11 @@ export default function CohortsPage() {
         }
     }, [selectedCohortId]);
 
-    async function loadCohorts() {
-        try {
-            const db = await getDB();
-            const result: any[] = await db.select(`
-                SELECT 
-                    c.id, c.name, c.color, c.sort_order, IFNULL(c.is_hidden, 0) as is_hidden,
-                    (SELECT COUNT(*) FROM personnel p WHERE p.cohort_id = c.id) as total_personnel,
-                    (SELECT COUNT(*) FROM checkouts ck JOIN personnel p ON ck.personnel_id = p.id WHERE p.cohort_id = c.id AND ck.return_date IS NULL) as checked_out_count
-                FROM cohorts c
-                ORDER BY c.sort_order ASC, c.id ASC
-            `);
-            setCohorts(result as Cohort[]);
-            if (result.length > 0 && !selectedCohortId) {
-                setSelectedCohortId(result[0].id);
-            }
-
-            const types: any[] = await db.select("SELECT DISTINCT type FROM equipment WHERE type IS NOT NULL AND type != ''");
-            setEquipmentTypes(types.map(t => t.type));
-        } catch (error) {
-            console.error(error);
+    useEffect(() => {
+        if (cohorts.length > 0 && !selectedCohortId) {
+            setSelectedCohortId(cohorts[0].id);
         }
-    }
+    }, [cohorts, selectedCohortId]);
 
     async function loadPersonnel(cohortId: number) {
         try {
@@ -125,7 +107,7 @@ export default function CohortsPage() {
 
             await db.execute("INSERT INTO cohorts (name, sort_order) VALUES ($1, $2)", [newCohortName.trim(), nextSort]);
             setNewCohortName("");
-            loadCohorts();
+            refreshData();
         } catch (error) {
             console.error(error);
             alert("기수 추가에 실패했습니다.");
@@ -140,7 +122,7 @@ export default function CohortsPage() {
             const newHidden = currentHidden === 1 ? 0 : 1;
             await db.execute("UPDATE cohorts SET is_hidden = $1 WHERE id = $2", [newHidden, cohortId]);
             // refresh
-            loadCohorts();
+            refreshData();
             if (currentHidden === 0 && selectedCohortId === cohortId) {
                 setSelectedCohortId(null);
             }
@@ -151,10 +133,10 @@ export default function CohortsPage() {
     };
 
     const handleColorChange = async (cohortId: number, color: string) => {
-        setCohorts(prev => prev.map(c => c.id === cohortId ? { ...c, color } : c));
         try {
             const db = await getDB();
             await db.execute("UPDATE cohorts SET color = $1 WHERE id = $2", [color, cohortId]);
+            await refreshData();
         } catch (error) {
             console.error("Failed to save color", error);
         }
@@ -218,7 +200,6 @@ export default function CohortsPage() {
     const [replaceTarget, setReplaceTarget] = useState<PersonnelWithCheckout | null>(null);
     const [replaceType, setReplaceType] = useState("");
     const [replaceSerial, setReplaceSerial] = useState("");
-    const [replaceTypeMode, setReplaceTypeMode] = useState<'select' | 'custom'>('select');
 
     const [isUndoModalOpen, setIsUndoModalOpen] = useState(false);
     const [undoTarget, setUndoTarget] = useState<PersonnelWithCheckout | null>(null);
@@ -290,7 +271,7 @@ export default function CohortsPage() {
             setIsReturnModalOpen(false);
             if (selectedCohortId) {
                 loadPersonnel(selectedCohortId);
-                loadCohorts();
+                refreshData();
             }
         } catch (error) {
             console.error(error);
@@ -329,7 +310,7 @@ export default function CohortsPage() {
             setIsUndoModalOpen(false);
             if (selectedCohortId) {
                 loadPersonnel(selectedCohortId);
-                loadCohorts();
+                refreshData();
             }
         } catch (error) {
             console.error(error);
@@ -342,7 +323,6 @@ export default function CohortsPage() {
         setReplaceTarget(p);
 
         let defaultMode: 'select' | 'custom' = equipmentTypes.length > 0 ? 'select' : 'custom';
-        setReplaceTypeMode(defaultMode);
 
         // If current equipment type exists in dropdown, select it by default. Otherwise select the first option or empty.
         const currentType = p.equipment_type || "";
@@ -463,10 +443,7 @@ export default function CohortsPage() {
             "연번": idx + 1, "이름": getDisplayName(p), "장비 종류": p.equipment_type || '-',
             "시리얼넘버": p.serial_number || '-', "불출일": p.checkout_date || '-', "반납일": p.return_date ? p.return_date.substring(2).replace(/-/g, '/') : '', "특이사항": p.remarks || '-'
         }));
-        const worksheet = XLSX.utils.json_to_sheet(exportData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, cohortName);
-        XLSX.writeFile(workbook, `${cohortName}_장비현황.xlsx`);
+        downloadExcel(exportData, cohortName, `${cohortName}_장비현황`);
     };
 
     return (
@@ -710,293 +687,68 @@ export default function CohortsPage() {
             </div>
 
             {/* Modals */}
-            {isCheckoutModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl shadow-xl w-96 overflow-hidden">
-                        <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                            <h3 className="font-bold text-gray-800">새 장비 불출</h3>
-                            <button onClick={() => setIsCheckoutModalOpen(false)} className="text-gray-400 hover:text-gray-600"><XCircle className="w-5 h-5" /></button>
-                        </div>
-                        <form onSubmit={submitCheckout} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">불출 대상</label>
-                                <div className="p-2 bg-gray-50 rounded text-sm text-gray-600">{checkoutTarget ? getDisplayName(checkoutTarget) : ""}</div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">장비 종류 <span className="text-red-500">*</span></label>
-                                {checkoutTypeMode === 'select' ? (
-                                    <div className="flex flex-col gap-2">
-                                        <select
-                                            value={checkoutType}
-                                            onChange={(e) => {
-                                                if (e.target.value === '__custom__') {
-                                                    setCheckoutTypeMode('custom');
-                                                    setCheckoutType("");
-                                                } else {
-                                                    setCheckoutType(e.target.value);
-                                                }
-                                            }}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none bg-white"
-                                        >
-                                            {equipmentTypes.map(t => (
-                                                <option key={t} value={t}>{t}</option>
-                                            ))}
-                                            <option value="__custom__">+ 직접 입력 (새 장비)</option>
-                                        </select>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="text"
-                                            value={checkoutType}
-                                            onChange={e => setCheckoutType(e.target.value)}
-                                            required autoFocus
-                                            placeholder="예: 소총, 무전기"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none"
-                                        />
-                                        {equipmentTypes.length > 0 && (
-                                            <button type="button" onClick={() => { setCheckoutTypeMode('select'); setCheckoutType(equipmentTypes[0]); }} className="text-xs text-blue-600 whitespace-nowrap hover:underline">
-                                                목록 선택
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">시리얼 넘버 <span className="text-red-500">*</span></label>
-                                <input type="text" value={checkoutSerial} onChange={e => setCheckoutSerial(e.target.value)} required placeholder="S/N" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none" />
-                            </div>
-                            <div className="pt-2 flex justify-end gap-2">
-                                <button type="button" onClick={() => setIsCheckoutModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md">취소</button>
-                                <button type="submit" className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium">불출 완료</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+            <CheckoutModal
+                isOpen={isCheckoutModalOpen}
+                onClose={() => setIsCheckoutModalOpen(false)}
+                onSubmit={submitCheckout}
+                checkoutTargetName={checkoutTarget ? getDisplayName(checkoutTarget) : ""}
+                checkoutTypeMode={checkoutTypeMode}
+                setCheckoutTypeMode={setCheckoutTypeMode}
+                checkoutType={checkoutType}
+                setCheckoutType={setCheckoutType}
+                equipmentTypes={equipmentTypes}
+                checkoutSerial={checkoutSerial}
+                setCheckoutSerial={setCheckoutSerial}
+            />
 
-            {isRemarkModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl shadow-xl w-96 overflow-hidden">
-                        <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                            <h3 className="font-bold text-gray-800">특이사항 메모</h3>
-                            <button onClick={() => setIsRemarkModalOpen(false)} className="text-gray-400 hover:text-gray-600"><XCircle className="w-5 h-5" /></button>
-                        </div>
-                        <form onSubmit={submitRemark} className="p-6 space-y-4">
-                            <textarea value={remarkText} onChange={e => setRemarkText(e.target.value)} autoFocus rows={4} placeholder="장비 파손 우려, 대여 연장 등 특이사항..." className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-blue-500 outline-none resize-none" />
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-400">내용을 모두 지우면 메모가 삭제됩니다.</span>
-                                <div className="flex gap-2">
-                                    <button type="button" onClick={() => setIsRemarkModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md">취소</button>
-                                    <button type="submit" className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium">저장</button>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+            <RemarkModal
+                isOpen={isRemarkModalOpen}
+                onClose={() => setIsRemarkModalOpen(false)}
+                onSubmit={submitRemark}
+                remarkText={remarkText}
+                setRemarkText={setRemarkText}
+            />
 
-            {isDamageModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl shadow-xl w-96 overflow-hidden">
-                        <div className="px-6 py-4 bg-red-50 border-b border-red-100 flex justify-between items-center">
-                            <h3 className="font-bold text-red-800">장비 손상 보고</h3>
-                            <button onClick={() => setIsDamageModalOpen(false)} className="text-red-400 hover:text-red-600"><XCircle className="w-5 h-5" /></button>
-                        </div>
-                        <form onSubmit={submitDamage} className="p-6 space-y-4">
-                            <div className="text-sm text-gray-600 mb-2">
-                                <strong>{damageTarget?.equipment_type}</strong> (S/N: {damageTarget?.serial_number}) 장비가 손상 처리되며, 대시보드의 손상 장비 탭으로 이동됩니다.
-                            </div>
-                            <textarea value={damageReason} onChange={e => setDamageReason(e.target.value)} required autoFocus rows={3} placeholder="어떻게 파손되었는지 사유를 적어주세요." className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-red-500 outline-none resize-none" />
-                            <div className="pt-2 flex justify-end gap-2">
-                                <button type="button" onClick={() => setIsDamageModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md">취소</button>
-                                <button type="submit" className="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 font-medium">파손 처리 확정</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+            <DamageModal
+                isOpen={isDamageModalOpen}
+                onClose={() => setIsDamageModalOpen(false)}
+                onSubmit={submitDamage}
+                damageTarget={damageTarget}
+                damageReason={damageReason}
+                setDamageReason={setDamageReason}
+            />
 
-            {isReturnModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl shadow-xl w-80 overflow-hidden">
-                        <div className="p-6 text-center space-y-4">
-                            <div className="mx-auto w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
-                                <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-900 mb-1">장비 반납</h3>
-                                <p className="text-sm text-gray-500">{returnTarget?.equipment_type} 기기를 반납 처리하시겠습니까? 창고 재고로 이동됩니다.</p>
-                            </div>
-                        </div>
-                        <div className="flex border-t border-gray-100">
-                            <button onClick={() => setIsReturnModalOpen(false)} className="flex-1 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 border-r border-gray-100">취소</button>
-                            <button onClick={submitReturn} className="flex-1 py-3 text-sm font-medium text-emerald-600 hover:bg-emerald-50">반납 확정</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ReturnModal
+                isOpen={isReturnModalOpen}
+                onClose={() => setIsReturnModalOpen(false)}
+                onSubmit={submitReturn}
+                targetName={returnTarget?.equipment_type}
+            />
+
             {/* Cohort Color Setting Modal */}
-            {isColorModalOpen && (
-                <div
-                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-                    onClick={() => setIsColorModalOpen(false)}
-                >
-                    <div
-                        className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[80vh]"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                            <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
-                                <Palette className="w-5 h-5 text-indigo-500" />
-                                기수별 색상 지정
-                            </h3>
-                            <button
-                                onClick={() => setIsColorModalOpen(false)}
-                                className="text-gray-400 hover:text-gray-600 transition-colors"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <div className="p-6 overflow-y-auto flex-1">
-                            {cohorts.length === 0 ? (
-                                <p className="text-center text-gray-500 py-8">등록된 기수가 없습니다.</p>
-                            ) : (
-                                <div className="space-y-3">
-                                    <p className="text-sm text-gray-500 mb-4">
-                                        우측의 컬러 피커를 클릭하여 각 기수의 고유 색상을 지정하세요. 지정된 색상은 대시보드의 기수 목록 캡슐에 반영됩니다.
-                                    </p>
-                                    {cohorts.map(cohort => {
-                                        const cColor = cohort.color || '#4b5563';
-                                        return (
-                                            <div key={cohort.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                                <span
-                                                    className="font-bold px-2.5 py-1.5 rounded-full text-sm shadow-sm border"
-                                                    style={{
-                                                        backgroundColor: `${cColor}15`,
-                                                        color: cColor,
-                                                        borderColor: `${cColor}30`
-                                                    }}
-                                                >
-                                                    {cohort.name}
-                                                </span>
-                                                <div className="flex items-center gap-3">
-                                                    <div className="text-xs text-gray-400 font-mono uppercase w-16 text-right">
-                                                        {cColor}
-                                                    </div>
-                                                    <input
-                                                        type="color"
-                                                        value={cColor}
-                                                        onChange={(e) => handleColorChange(cohort.id, e.target.value)}
-                                                        className="w-8 h-8 rounded cursor-pointer border-0 p-0 bg-transparent"
-                                                    />
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end">
-                            <button
-                                onClick={() => setIsColorModalOpen(false)}
-                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
-                            >
-                                완료
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ColorModal
+                isOpen={isColorModalOpen}
+                onClose={() => setIsColorModalOpen(false)}
+                cohorts={cohorts}
+                handleColorChange={handleColorChange}
+            />
 
             {/* Replace Modal */}
-            {isReplaceModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex flex-col items-center justify-center z-50">
-                    <div className="bg-white rounded-xl shadow-xl w-96 overflow-hidden">
-                        <div className="px-6 py-4 bg-orange-50 border-b border-orange-100 flex justify-between items-center">
-                            <h3 className="font-bold text-orange-800">장비 교체</h3>
-                            <button onClick={() => setIsReplaceModalOpen(false)} className="text-orange-400 hover:text-orange-600"><XCircle className="w-5 h-5" /></button>
-                        </div>
-                        <form onSubmit={submitReplace} className="p-6 space-y-4">
-                            <div className="text-sm text-gray-600 mb-2">
-                                <strong>{replaceTarget?.personnel_name}</strong> 인원의 대여 장비를 새 장비로 교체 기록합니다.<br />
-                                기존 장비({replaceTarget?.equipment_type} - {replaceTarget?.serial_number})는 자동으로 반납 처리됩니다.
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">새 장비 종류 <span className="text-red-500">*</span></label>
-                                {replaceTypeMode === 'select' ? (
-                                    <div className="flex flex-col gap-2">
-                                        <select
-                                            value={replaceType}
-                                            onChange={(e) => {
-                                                if (e.target.value === '__custom__') {
-                                                    setReplaceTypeMode('custom');
-                                                    setReplaceType("");
-                                                } else {
-                                                    setReplaceType(e.target.value);
-                                                }
-                                            }}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-orange-500 outline-none bg-white"
-                                        >
-                                            {equipmentTypes.map(t => (
-                                                <option key={t} value={t}>{t}</option>
-                                            ))}
-                                            <option value="__custom__">+ 직접 입력 (새 장비)</option>
-                                        </select>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="text"
-                                            value={replaceType}
-                                            onChange={e => setReplaceType(e.target.value)}
-                                            required autoFocus
-                                            placeholder="예: 소총, 무전기"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-orange-500 outline-none"
-                                        />
-                                        {equipmentTypes.length > 0 && (
-                                            <button type="button" onClick={() => { setReplaceTypeMode('select'); setReplaceType(equipmentTypes.includes(replaceTarget?.equipment_type || "") ? (replaceTarget?.equipment_type || "") : equipmentTypes[0]); }} className="text-xs text-orange-600 whitespace-nowrap hover:underline">
-                                                목록 선택
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">새 장비 시리얼 넘버 <span className="text-red-500">*</span></label>
-                                <input type="text" value={replaceSerial} onChange={e => setReplaceSerial(e.target.value)} required placeholder="S/N" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-orange-500 outline-none" />
-                            </div>
-                            <div className="pt-2 flex justify-end gap-2">
-                                <button type="button" onClick={() => setIsReplaceModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md border border-gray-200">취소</button>
-                                <button type="submit" className="px-4 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 font-medium">교체 완료</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+            <ReplaceModal
+                isOpen={isReplaceModalOpen}
+                onClose={() => setIsReplaceModalOpen(false)}
+                onSubmit={submitReplace}
+                replaceTarget={replaceTarget}
+                replaceSerial={replaceSerial}
+                setReplaceSerial={setReplaceSerial}
+            />
 
-            {/* Undo Confirm Modal */}
-            {isUndoModalOpen && undoTarget && (
-                <div className="fixed inset-0 bg-black/50 flex flex-col items-center justify-center z-50">
-                    <div className="bg-white rounded-xl shadow-xl w-96 overflow-hidden">
-                        <div className="px-6 py-4 bg-amber-50 border-b border-amber-100 flex justify-between items-center">
-                            <h3 className="font-bold text-amber-800">반납 취소</h3>
-                            <button onClick={() => setIsUndoModalOpen(false)} className="text-amber-400 hover:text-amber-600"><XCircle className="w-5 h-5" /></button>
-                        </div>
-                        <form onSubmit={submitUndoReturn} className="p-6 space-y-4">
-                            <div className="text-sm text-gray-600">
-                                <strong>{undoTarget.personnel_name}</strong> 인원의 <strong>{undoTarget.equipment_type} ({undoTarget.serial_number})</strong> 반납 처리를 취소하고 다시 불출 상태로 되돌리시겠습니까?
-                            </div>
-                            <div className="pt-2 flex justify-end gap-2">
-                                <button type="button" onClick={() => setIsUndoModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md border border-gray-200">취소</button>
-                                <button type="submit" className="px-4 py-2 text-sm bg-amber-600 text-white rounded-md hover:bg-amber-700 font-medium">반납 취소 확정</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+            <UndoConfirmModal
+                isOpen={isUndoModalOpen}
+                onClose={() => setIsUndoModalOpen(false)}
+                onConfirm={submitUndoReturn}
+                undoTarget={undoTarget}
+            />
         </div>
     );
 }

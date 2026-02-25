@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from "react";
 import { getDB } from "../lib/db";
 import { Download, Upload } from "lucide-react";
+import { downloadExcel } from "../lib/excelUtils";
 import * as XLSX from "xlsx";
+import { useGlobalData } from "../contexts/GlobalDataContext";
 
 interface DashboardStats {
     totalEquipment: number;
@@ -14,11 +16,13 @@ interface CohortSummary {
     cohortName: string;
     equipmentType: string;
     count: number;
+    cohortColor: string | null;
 }
 
 export default function Dashboard() {
     const [stats, setStats] = useState<DashboardStats>({ totalEquipment: 0, inStock: 0, checkedOut: 0, damaged: 0 });
     const [cohortSummaries, setCohortSummaries] = useState<CohortSummary[]>([]);
+    const { cohorts } = useGlobalData();
 
     useEffect(() => {
         async function loadData() {
@@ -44,19 +48,29 @@ export default function Dashboard() {
                     });
                 }
 
-                // Fetch cohort-specific stats
+                // Fetch cohort-specific stats using cached cohorts to generate names and colors
                 const groupResult: any[] = await db.select(`
-          SELECT c.name as cohortName, e.type as equipmentType, COUNT(e.id) as count
+          SELECT c.id as cohortId, e.type as equipmentType, COUNT(e.id) as count
           FROM checkouts ck
           JOIN personnel p ON ck.personnel_id = p.id
           JOIN cohorts c ON p.cohort_id = c.id
           JOIN equipment e ON ck.equipment_id = e.id
           WHERE ck.return_date IS NULL
           GROUP BY c.id, e.type
-          ORDER BY c.name
+          ORDER BY c.sort_order ASC
         `);
 
-                setCohortSummaries(groupResult);
+                const formattedGroupResult = groupResult.map(row => {
+                    const matchedCohort = cohorts.find(c => c.id === row.cohortId);
+                    return {
+                        cohortName: matchedCohort ? matchedCohort.name : "알 수 없는 기수",
+                        equipmentType: row.equipmentType,
+                        count: row.count,
+                        cohortColor: matchedCohort ? matchedCohort.color : null
+                    };
+                });
+
+                setCohortSummaries(formattedGroupResult);
 
             } catch (error) {
                 console.error("Failed to load dashboard data:", error);
@@ -245,12 +259,7 @@ export default function Dashboard() {
             "장비 종류": item.equipmentType,
             "불출 대수": item.count
         }));
-
-        const worksheet = XLSX.utils.json_to_sheet(exportData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "불출현황");
-
-        XLSX.writeFile(workbook, "장비_불출현황_요약.xlsx");
+        downloadExcel(exportData, "불출현황", "장비_불출현황_요약");
     };
 
     return (
@@ -319,16 +328,27 @@ export default function Dashboard() {
                             ) : (
                                 Object.entries(
                                     cohortSummaries.reduce((acc, row) => {
-                                        if (!acc[row.cohortName]) acc[row.cohortName] = {};
-                                        acc[row.cohortName][row.equipmentType] = row.count;
+                                        if (!acc[row.cohortName]) acc[row.cohortName] = { color: row.cohortColor, counts: {} };
+                                        acc[row.cohortName].counts[row.equipmentType] = row.count;
                                         return acc;
-                                    }, {} as Record<string, Record<string, number>>)
-                                ).map(([cohortName, equipmentCounts]) => {
+                                    }, {} as Record<string, { color: string | null, counts: Record<string, number> }>)
+                                ).map(([cohortName, data]) => {
+                                    const equipmentCounts = data.counts;
+                                    const cColor = data.color || '#4b5563';
                                     const total = Object.values(equipmentCounts).reduce((sum, count) => sum + count, 0);
                                     return (
                                         <tr key={cohortName} className="hover:bg-gray-50/50 transition-colors group">
-                                            <td className="px-6 py-3.5 font-bold text-gray-900 bg-white group-hover:bg-gray-50/50 sticky left-0 z-10 border-r border-gray-100 shadow-[1px_0_0_0_rgba(243,244,246,1)]">
-                                                {cohortName}
+                                            <td className="px-6 py-3.5 bg-white group-hover:bg-gray-50/50 sticky left-0 z-10 border-r border-gray-100 shadow-[1px_0_0_0_rgba(243,244,246,1)]">
+                                                <span
+                                                    className="font-bold px-2.5 py-1.5 rounded-full text-sm shadow-sm border inline-block min-w-16 text-center"
+                                                    style={{
+                                                        backgroundColor: data.color ? `${cColor}15` : '#f3f4f6',
+                                                        color: data.color ? cColor : '#374151',
+                                                        borderColor: data.color ? `${cColor}30` : '#d1d5db'
+                                                    }}
+                                                >
+                                                    {cohortName}
+                                                </span>
                                             </td>
                                             {Array.from(new Set(cohortSummaries.map(s => s.equipmentType))).sort().map(type => (
                                                 <td key={type} className={`px-4 py-3.5 text-center ${equipmentCounts[type] ? 'text-gray-900 font-medium' : 'text-gray-300'}`}>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { initDB } from "./lib/db";
 import Layout from "./components/Layout";
+import { GlobalDataProvider } from "./contexts/GlobalDataContext";
 import "./App.css";
 
 // Placeholder pages
@@ -45,15 +46,17 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/equipment" element={<EquipmentPage />} />
-          <Route path="/inventory" element={<InventoryPage />} />
-          <Route path="/cohorts" element={<CohortsPage />} />
-          <Route path="/damaged" element={<DamagedPage />} />
-        </Routes>
-      </Layout>
+      <GlobalDataProvider>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/equipment" element={<EquipmentPage />} />
+            <Route path="/inventory" element={<InventoryPage />} />
+            <Route path="/cohorts" element={<CohortsPage />} />
+            <Route path="/damaged" element={<DamagedPage />} />
+          </Routes>
+        </Layout>
+      </GlobalDataProvider>
     </BrowserRouter>
   );
 }

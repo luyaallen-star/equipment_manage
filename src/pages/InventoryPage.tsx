@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { getDB } from "../lib/db";
 import { Download, CheckCircle, Package } from "lucide-react";
-import * as XLSX from "xlsx";
+import { downloadExcel } from "../lib/excelUtils";
+import { StatusBadge } from "../components/ui/StatusBadge";
+import { useDebounce } from "../hooks/useDebounce";
 
 interface InventoryItem {
     id: number;
@@ -28,9 +30,14 @@ export default function InventoryPage() {
                     e.type, 
                     e.serial_number, 
                     e.status,
-                    (SELECT remarks FROM checkouts WHERE equipment_id = e.id ORDER BY id DESC LIMIT 1) as remarks
+                    last_ck.remarks
                 FROM equipment e
-                WHERE status = 'IN_STOCK'
+                LEFT JOIN (
+                    SELECT equipment_id, remarks
+                    FROM checkouts c1
+                    WHERE id = (SELECT MAX(id) FROM checkouts c2 WHERE c2.equipment_id = c1.equipment_id)
+                ) last_ck ON e.id = last_ck.equipment_id
+                WHERE e.status = 'IN_STOCK'
                 ORDER BY e.type ASC, e.id DESC
             `);
             setInventoryList(result);
@@ -38,6 +45,8 @@ export default function InventoryPage() {
             console.error("Failed to load inventory:", error);
         }
     }
+
+    const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
     const handleExportExcel = () => {
         if (inventoryList.length === 0) {
@@ -52,15 +61,12 @@ export default function InventoryPage() {
             "상태": "창고보관(재고)"
         }));
 
-        const worksheet = XLSX.utils.json_to_sheet(exportData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "창고 재고");
-        XLSX.writeFile(workbook, "창고_재고_현황.xlsx");
+        downloadExcel(exportData, "창고 재고", "창고_재고_현황");
     };
 
     const filteredList = inventoryList.filter(item => {
-        if (!searchQuery.trim()) return true;
-        const query = searchQuery.toLowerCase().trim();
+        if (!debouncedSearchQuery.trim()) return true;
+        const query = debouncedSearchQuery.toLowerCase().trim();
         const searchableText = [
             item.serial_number,
             item.type,
@@ -158,9 +164,7 @@ export default function InventoryPage() {
                                             <td className="px-6 py-4 font-medium text-gray-900">{equip.type}</td>
                                             <td className="px-6 py-4 text-gray-600 font-mono text-xs">{equip.serial_number}</td>
                                             <td className="px-6 py-4">
-                                                <span className="inline-block px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold shrink-0">
-                                                    창고 보관중
-                                                </span>
+                                                <StatusBadge status="IN_STOCK" label="창고 보관중" />
                                                 {equip.remarks && (
                                                     <div className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 p-2 rounded-md break-words max-w-sm">
                                                         <span className="font-semibold mr-1">이전 메모:</span>{equip.remarks}

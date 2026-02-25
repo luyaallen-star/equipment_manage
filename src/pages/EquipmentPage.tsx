@@ -2,6 +2,9 @@ import { useEffect, useState, useRef } from "react";
 import { getDB } from "../lib/db";
 import { Upload, Package, Download, Palette, X } from "lucide-react";
 import * as XLSX from "xlsx";
+import { downloadExcel } from "../lib/excelUtils";
+import { StatusBadge } from "../components/ui/StatusBadge";
+import { useDebounce } from "../hooks/useDebounce";
 
 interface EquipmentItem {
     id: number;
@@ -42,11 +45,16 @@ export default function EquipmentPage() {
                     IFNULL(MAX(c.name), '') as cohort_name,
                     IFNULL(MAX(p.name), '') as person_name,
                     MAX(c.color) as cohort_color,
-                    (SELECT remarks FROM checkouts WHERE equipment_id = e.id ORDER BY id DESC LIMIT 1) as remarks
+                    MAX(last_ck.remarks) as remarks
                 FROM equipment e
                 LEFT JOIN checkouts ch ON e.id = ch.equipment_id AND ch.return_date IS NULL
                 LEFT JOIN personnel p ON ch.personnel_id = p.id
                 LEFT JOIN cohorts c ON p.cohort_id = c.id
+                LEFT JOIN (
+                    SELECT equipment_id, remarks
+                    FROM checkouts c1
+                    WHERE id = (SELECT MAX(id) FROM checkouts c2 WHERE c2.equipment_id = c1.equipment_id)
+                ) last_ck ON e.id = last_ck.equipment_id
                 GROUP BY e.id
                 ORDER BY CASE e.status
                     WHEN 'IN_STOCK' THEN 1
@@ -170,15 +178,14 @@ export default function EquipmentPage() {
             "상태": item.status === 'IN_STOCK' ? '창고 보관중' : (item.status === 'CHECKED_OUT' ? `불출됨 ${item.cohort_name && item.person_name ? `(${item.cohort_name} ${item.person_name})` : ''}` : '손상/파손')
         }));
 
-        const worksheet = XLSX.utils.json_to_sheet(exportData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "전체장비대장");
-        XLSX.writeFile(workbook, "전체_장비_대장.xlsx");
+        downloadExcel(exportData, "전체장비대장", "전체_장비_대장");
     };
 
+    const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
     const filteredList = equipmentList.filter(item => {
-        if (!searchQuery.trim()) return true;
-        const query = searchQuery.toLowerCase().trim();
+        if (!debouncedSearchQuery.trim()) return true;
+        const query = debouncedSearchQuery.toLowerCase().trim();
         const searchableText = [
             item.serial_number,
             item.type,
@@ -285,12 +292,10 @@ export default function EquipmentPage() {
                                             <td className="px-6 py-4 text-gray-600 font-mono text-xs">{equip.serial_number}</td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-wrap gap-2 items-center">
-                                                    {equip.status === 'IN_STOCK' && <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold">창고 보관중</span>}
+                                                    {equip.status === 'IN_STOCK' && <StatusBadge status="IN_STOCK" />}
                                                     {equip.status === 'CHECKED_OUT' && (
                                                         <div className="flex items-center gap-2">
-                                                            <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-semibold shrink-0">
-                                                                불출됨
-                                                            </span>
+                                                            <StatusBadge status="CHECKED_OUT" />
                                                             {equip.cohort_name && equip.person_name && (
                                                                 <span
                                                                     className="px-2 py-0.5 border text-gray-600 rounded-md text-[11px] font-bold shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
@@ -305,7 +310,7 @@ export default function EquipmentPage() {
                                                             )}
                                                         </div>
                                                     )}
-                                                    {equip.status === 'DAMAGED' && <span className="px-2.5 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold">손상/파손</span>}
+                                                    {equip.status === 'DAMAGED' && <StatusBadge status="DAMAGED" />}
                                                 </div>
                                                 {equip.remarks && (
                                                     <div className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 p-2 rounded-md break-words max-w-sm">
