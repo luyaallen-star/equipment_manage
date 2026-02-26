@@ -1,13 +1,37 @@
 import { useState } from "react";
 import { getDB } from "../lib/db";
 import { Settings, AlertTriangle, Trash2 } from "lucide-react";
+import Swal from "sweetalert2";
 
 export default function SettingsPage() {
     const [isDeleting, setIsDeleting] = useState(false);
 
     const handleHardReset = async () => {
-        if (!window.confirm("정말로 모든 데이터를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) return;
-        if (!window.confirm("정말로 다시 한 번 확인합니다. 데이터베이스의 모든 내용이 완전히 삭제됩니다. 계속하시겠습니까?")) return;
+        const result1 = await Swal.fire({
+            title: "데이터 전체 삭제",
+            text: "정말로 모든 데이터를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#d33",
+            cancelButtonColor: "#3085d6",
+            confirmButtonText: "예, 삭제합니다!",
+            cancelButtonText: "취소"
+        });
+
+        if (!result1.isConfirmed) return;
+
+        const result2 = await Swal.fire({
+            title: "최종 확인",
+            text: "데이터베이스의 모든 내용이 완전히 삭제됩니다. 계속하시겠습니까?",
+            icon: "error",
+            showCancelButton: true,
+            confirmButtonColor: "#d33",
+            cancelButtonColor: "#3085d6",
+            confirmButtonText: "영구 삭제",
+            cancelButtonText: "취소"
+        });
+
+        if (!result2.isConfirmed) return;
 
         setIsDeleting(true);
         try {
@@ -28,11 +52,11 @@ export default function SettingsPage() {
                 console.log("Could not reset sqlite sequence, which is fine.", e);
             }
 
-            alert("모든 데이터가 성공적으로 초기화되었습니다.");
+            await Swal.fire("초기화 완료", "모든 데이터가 성공적으로 초기화되었습니다.", "success");
             window.location.href = "/"; // Reload the app to clear global state cleanly
         } catch (error) {
             console.error("Factory Reset Failed:", error);
-            alert("삭제 처리 중 알 수 없는 오류가 발생했습니다.");
+            await Swal.fire("오류 발생", "삭제 처리 중 알 수 없는 오류가 발생했습니다.", "error");
         } finally {
             setIsDeleting(false);
         }
