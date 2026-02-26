@@ -184,7 +184,7 @@ export default function InventoryPage() {
                             <tr className="text-gray-500 uppercase tracking-wider">
                                 <th className="px-6 py-3 font-medium w-24">NO</th>
                                 <th className="px-6 py-3 font-medium w-36">장비 종류</th>
-                                <th className="px-6 py-3 font-medium w-auto whitespace-nowrap border-r border-gray-100">시리얼 넘버</th>
+                                <th className="px-6 py-3 font-medium w-1 whitespace-nowrap border-r border-gray-100">시리얼 넘버</th>
                                 <th className="px-6 py-3 font-medium w-40 border-r border-gray-100 text-center">현재 상태</th>
                                 <th className="px-6 py-3 font-medium border-r border-gray-100 min-w-[200px]">메모</th>
                                 <th className="px-6 py-3 font-medium w-40 text-center">작업</th>

@@ -278,7 +278,7 @@ export default function EquipmentPage() {
                             <tr className="text-gray-500 uppercase tracking-wider">
                                 <th className="px-6 py-3 font-medium w-24">NO</th>
                                 <th className="px-6 py-3 font-medium w-36">장비 종류</th>
-                                <th className="px-6 py-3 font-medium w-auto whitespace-nowrap border-r border-gray-100">시리얼 넘버</th>
+                                <th className="px-6 py-3 font-medium w-1 whitespace-nowrap border-r border-gray-100">시리얼 넘버</th>
                                 <th className="px-6 py-3 font-medium w-48 border-r border-gray-100">현재 상태</th>
                                 <th className="px-6 py-3 font-medium min-w-[200px]">메모</th>
                             </tr>
@@ -311,7 +311,7 @@ export default function EquipmentPage() {
                                                     {equip.type}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-gray-600 font-mono text-xs border-r border-gray-100">{equip.serial_number}</td>
+                                            <td className="px-6 py-4 text-gray-600 font-mono text-xs border-r border-gray-100 whitespace-nowrap">{equip.serial_number}</td>
                                             <td className="px-6 py-4 border-r border-gray-100">
                                                 <div className="flex flex-wrap gap-2 items-center">
                                                     {equip.status === 'IN_STOCK' && <StatusBadge status="IN_STOCK" label="점검 완료" />}

@@ -691,7 +691,7 @@ export default function CohortsPage() {
                                                 <th className="px-4 py-3 font-medium w-12">연번</th>
                                                 <th className="px-4 py-3 font-medium w-32">이름</th>
                                                 <th className="px-4 py-3 font-medium">장비종류</th>
-                                                <th className="px-4 py-3 font-medium w-auto whitespace-nowrap border-r border-gray-100">시리얼넘버</th>
+                                                <th className="px-4 py-3 font-medium w-1 whitespace-nowrap border-r border-gray-100">시리얼넘버</th>
                                                 <th className="px-4 py-3 font-medium border-r border-gray-100 w-28 text-center">반납일</th>
                                                 <th className="px-4 py-3 font-medium border-r border-gray-100 min-w-[200px]">메모</th>
                                                 <th className="px-4 py-3 font-medium text-center">장비 관리 액션</th>
