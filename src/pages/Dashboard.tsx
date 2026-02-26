@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { getDB } from "../lib/db";
-import { Download, Upload } from "lucide-react";
+import { Download, Upload, FileText } from "lucide-react";
 import { downloadExcel } from "../lib/excelUtils";
 import * as XLSX from "xlsx";
 import { useGlobalData } from "../contexts/GlobalDataContext";
@@ -248,6 +248,20 @@ export default function Dashboard() {
         reader.readAsArrayBuffer(file);
     };
 
+    const handleDownloadTemplate = () => {
+        const templateData = [
+            {
+                "기수": "1기",
+                "이름": "홍길동",
+                "장비종류": "노트북",
+                "시리얼넘버": "SN123456",
+                "불출일": "2024-01-01",
+                "특이사항": "신규 지급"
+            }
+        ];
+        downloadExcel(templateData, "Template", "template");
+    };
+
     const handleExportExcel = () => {
         if (cohortSummaries.length === 0) {
             alert("출력할 데이터가 없습니다.");
@@ -274,6 +288,13 @@ export default function Dashboard() {
                         ref={fileInputRef}
                         onChange={handleImportExcel}
                     />
+                    <button
+                        onClick={handleDownloadTemplate}
+                        className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+                    >
+                        <FileText className="w-4 h-4" />
+                        템플릿 다운로드
+                    </button>
                     <button
                         onClick={() => fileInputRef.current?.click()}
                         className="flex items-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
