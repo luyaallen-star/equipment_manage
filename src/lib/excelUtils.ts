@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
+import { downloadDir, join } from "@tauri-apps/api/path";
 
 /**
  * Reusable utility to generate and download Excel files across pages.
@@ -43,10 +44,15 @@ export const saveExcelWithDialog = async (data: any[], sheetName: string, defaul
         // Generate Excel file as Uint8Array
         const excelBuffer = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
 
+        // Build robust absolute default path for Windows compatibility
+        const dDir = await downloadDir();
+        const safeFileName = defaultFileName.endsWith(".xlsx") ? defaultFileName : `${defaultFileName}.xlsx`;
+        const defaultFullPath = await join(dDir, safeFileName);
+
         // Open save dialog
         const filePath = await save({
             title: "저장 위치 선택",
-            defaultPath: defaultFileName.endsWith(".xlsx") ? defaultFileName : `${defaultFileName}.xlsx`,
+            defaultPath: defaultFullPath,
             filters: [
                 {
                     name: "Excel",
@@ -59,8 +65,8 @@ export const saveExcelWithDialog = async (data: any[], sheetName: string, defaul
             await writeFile(filePath, new Uint8Array(excelBuffer));
             console.log(`File saved to: ${filePath}`);
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error("Failed to save excel file:", error);
-        alert("파일 저장 중 오류가 발생했습니다.");
+        alert(`파일 저장 중 오류가 발생했습니다.\n원인: ${error.message || error}`);
     }
 };
