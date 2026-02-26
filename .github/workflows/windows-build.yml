@@ -37,11 +37,21 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Debug Output Key Presence
+        run: |
+          if [ -z "${{ secrets.TAURI_PRIVATE_KEY }}" ] && [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "::error::Both TAURI_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY are empty! Please check Github Secrets."
+            exit 1
+          else
+            echo "Private key is present!"
+          fi
+        shell: bash
+
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY || secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
           tagName: "v__VERSION__"
@@ -49,3 +59,4 @@ jobs:
           releaseBody: "See the assets to download this version and install."
           releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true
