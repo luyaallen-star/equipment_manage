@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, AlertTriangle, Package, Box } from "lucide-react";
+import { LayoutDashboard, Users, AlertTriangle, Package, Box, Settings } from "lucide-react";
 
 interface LayoutProps {
     children: ReactNode;
@@ -15,6 +15,7 @@ export default function Layout({ children }: LayoutProps) {
         { name: "창고 보유 장비", href: "/inventory", icon: Box },
         { name: "기수별 인원/장비", href: "/cohorts", icon: Users },
         { name: "손상 장비", href: "/damaged", icon: AlertTriangle },
+        { name: "환경 설정", href: "/settings", icon: Settings },
     ];
 
     return (

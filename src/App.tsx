@@ -11,6 +11,7 @@ import CohortsPage from "./pages/Cohorts";
 import EquipmentPage from "./pages/EquipmentPage";
 import InventoryPage from "./pages/InventoryPage";
 import DamagedPage from "./pages/DamagedPage";
+import SettingsPage from "./pages/SettingsPage";
 
 function App() {
   const [dbReady, setDbReady] = useState(false);
@@ -54,6 +55,7 @@ function App() {
             <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/cohorts" element={<CohortsPage />} />
             <Route path="/damaged" element={<DamagedPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </Layout>
       </GlobalDataProvider>
