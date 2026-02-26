@@ -57,8 +57,9 @@ export default function CohortsPage() {
     }, [selectedCohortId]);
 
     useEffect(() => {
-        if (cohorts.length > 0 && !selectedCohortId) {
-            setSelectedCohortId(cohorts[0].id);
+        const visibleCohorts = cohorts.filter(c => c.is_hidden === 0);
+        if (visibleCohorts.length > 0 && !selectedCohortId) {
+            setSelectedCohortId(visibleCohorts[0].id);
         }
     }, [cohorts, selectedCohortId]);
 
@@ -698,7 +699,7 @@ export default function CohortsPage() {
                                         </thead>
                                         <tbody className="divide-y divide-gray-100 bg-white">
                                             {personnel.length === 0 ? (
-                                                <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-500">등록된 인원이 없습니다.</td></tr>
+                                                <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-500">등록된 인원이 없습니다.</td></tr>
                                             ) : (
                                                 personnel.map((p, idx) => (
                                                     <tr key={`${p.personnel_id}-${p.checkout_id || 'new'}`} className={`hover:bg-gray-50/50 group ${selectedIds.has(p.personnel_id) ? 'bg-indigo-50/30' : ''}`}>

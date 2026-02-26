@@ -30,7 +30,7 @@ export const GlobalDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         try {
             const db = await getDB();
 
-            // Generate full active cohorts with subquery data
+            // Generate all cohorts (including hidden) with subquery data
             const loadedCohorts: Cohort[] = await db.select(`
                 SELECT 
                     c.*,
@@ -42,8 +42,7 @@ export const GlobalDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                         WHERE p.cohort_id = c.id AND ck.return_date IS NULL
                     ) as checked_out_count
                 FROM cohorts c
-                WHERE c.is_hidden = 0
-                ORDER BY c.sort_order ASC
+                ORDER BY c.is_hidden ASC, c.sort_order ASC
             `);
             setCohorts(loadedCohorts);
 

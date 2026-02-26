@@ -37,22 +37,25 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Debug Output Key Presence
+      - name: Verify Signing Key
+        shell: bash
         run: |
-          if [ -z "${{ secrets.TAURI_PRIVATE_KEY }}" ] && [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
-            echo "::error::Both TAURI_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY are empty! Please check Github Secrets."
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is empty! Updater artifacts (latest.json) will NOT be generated."
+            echo "::error::Please add your Tauri signing private key as a GitHub Secret named TAURI_PRIVATE_KEY."
             exit 1
           else
-            echo "Private key is present!"
+            echo "Signing private key is present (length: ${#TAURI_SIGNING_PRIVATE_KEY} chars)"
           fi
-        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
 
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY || secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: "v__VERSION__"
           releaseName: "App v__VERSION__"

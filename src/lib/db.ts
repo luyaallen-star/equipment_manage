@@ -20,7 +20,7 @@ export async function initDB() {
   try { await db.execute("ALTER TABLE cohorts ADD COLUMN is_hidden INTEGER DEFAULT 0"); } catch (e) { }
 
   // 2. 장비 현황 (equipment)
-  // status: IN_STOCK, CHECKED_OUT, DAMAGED
+  // status: IN_STOCK, NEEDS_INSPECTION, CHECKED_OUT, DAMAGED
   await db.execute(`
     CREATE TABLE IF NOT EXISTS equipment (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

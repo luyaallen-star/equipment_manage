@@ -3,7 +3,6 @@ import { getDB } from "../lib/db";
 import { Download, Upload, FileText, RefreshCw } from "lucide-react";
 import { downloadExcel, saveExcelWithDialog } from "../lib/excelUtils";
 import * as XLSX from "xlsx";
-import { useGlobalData } from "../contexts/GlobalDataContext";
 
 interface DashboardStats {
     totalEquipment: number;
@@ -29,7 +28,6 @@ export default function Dashboard() {
     const [stats, setStats] = useState<DashboardStats>({ totalEquipment: 0, inStock: 0, needsInspection: 0, checkedOut: 0, damaged: 0 });
     const [typeStats, setTypeStats] = useState<EquipmentTypeStat[]>([]);
     const [cohortSummaries, setCohortSummaries] = useState<CohortSummary[]>([]);
-    const { } = useGlobalData();
 
     useEffect(() => {
         async function loadData() {
