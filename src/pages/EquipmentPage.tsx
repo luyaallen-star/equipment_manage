@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { getDB } from "../lib/db";
-import { Upload, Package, Download, Palette, X } from "lucide-react";
+import { Upload, Package, Download, Palette, X, FileText } from "lucide-react";
 import * as XLSX from "xlsx";
 import { saveExcelWithDialog } from "../lib/excelUtils";
 import { StatusBadge } from "../components/ui/StatusBadge";
@@ -165,6 +165,16 @@ export default function EquipmentPage() {
         reader.readAsArrayBuffer(file);
     };
 
+    const handleDownloadTemplate = async () => {
+        const templateData = [
+            {
+                "장비종류": "노트북",
+                "시리얼넘버": "SN123456"
+            }
+        ];
+        await saveExcelWithDialog(templateData, "Template", "장비등록_템플릿");
+    };
+
     const handleExportExcel = async () => {
         if (equipmentList.length === 0) {
             alert("출력할 데이터가 없습니다.");
@@ -230,6 +240,13 @@ export default function EquipmentPage() {
                         ref={fileInputRef}
                         onChange={handleImportExcel}
                     />
+                    <button
+                        onClick={handleDownloadTemplate}
+                        className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+                    >
+                        <FileText className="w-4 h-4" />
+                        템플릿 다운로드
+                    </button>
                     <button
                         onClick={() => fileInputRef.current?.click()}
                         className="flex items-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
