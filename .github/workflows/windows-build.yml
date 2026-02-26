@@ -40,11 +40,14 @@ jobs:
       - name: Prepare signing key
         shell: bash
         run: |
-          # Remove only trailing newlines/carriage returns from the secret
-          printf '%s' "$RAW_KEY" > $RUNNER_TEMP/clean_key.txt
-          CLEAN_KEY=$(cat $RUNNER_TEMP/clean_key.txt | tr -d '\r\n')
-          echo "TAURI_SIGNING_PRIVATE_KEY=${CLEAN_KEY}" >> $GITHUB_ENV
-          echo "Sanitized key length: ${#CLEAN_KEY} chars"
+          # Use heredoc syntax to precisely control value boundaries
+          # This avoids trailing newline issues with KEY=VALUE format
+          CLEAN_KEY=$(printf '%s' "$RAW_KEY" | tr -d '\r\n')
+          echo "TAURI_SIGNING_PRIVATE_KEY<<KEYEOF" >> $GITHUB_ENV
+          printf '%s' "$CLEAN_KEY" >> $GITHUB_ENV
+          printf '\n' >> $GITHUB_ENV
+          echo "KEYEOF" >> $GITHUB_ENV
+          echo "Key length: ${#CLEAN_KEY} chars"
         env:
           RAW_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
 
