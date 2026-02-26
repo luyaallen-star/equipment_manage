@@ -37,17 +37,21 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Write signing key to file
+      - name: Prepare signing key
         shell: bash
         run: |
-          echo "${{ secrets.TAURI_PRIVATE_KEY }}" | tr -d '\n\r' > $RUNNER_TEMP/tauri-signing-key.key
-          echo "Key file size: $(wc -c < $RUNNER_TEMP/tauri-signing-key.key) bytes"
+          # Remove only trailing newlines/carriage returns from the secret
+          printf '%s' "$RAW_KEY" > $RUNNER_TEMP/clean_key.txt
+          CLEAN_KEY=$(cat $RUNNER_TEMP/clean_key.txt | tr -d '\r\n')
+          echo "TAURI_SIGNING_PRIVATE_KEY=${CLEAN_KEY}" >> $GITHUB_ENV
+          echo "Sanitized key length: ${#CLEAN_KEY} chars"
+        env:
+          RAW_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
 
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY_PATH: ${{ runner.temp }}/tauri-signing-key.key
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
           tagName: "v__VERSION__"
