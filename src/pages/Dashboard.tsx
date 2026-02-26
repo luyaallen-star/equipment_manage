@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { getDB } from "../lib/db";
 import { Download, Upload, FileText } from "lucide-react";
-import { downloadExcel } from "../lib/excelUtils";
+import { downloadExcel, saveExcelWithDialog } from "../lib/excelUtils";
 import * as XLSX from "xlsx";
 import { useGlobalData } from "../contexts/GlobalDataContext";
 
@@ -248,7 +248,7 @@ export default function Dashboard() {
         reader.readAsArrayBuffer(file);
     };
 
-    const handleDownloadTemplate = () => {
+    const handleDownloadTemplate = async () => {
         const templateData = [
             {
                 "기수": "1기",
@@ -259,7 +259,7 @@ export default function Dashboard() {
                 "특이사항": "신규 지급"
             }
         ];
-        downloadExcel(templateData, "Template", "template");
+        await saveExcelWithDialog(templateData, "Template", "template");
     };
 
     const handleExportExcel = () => {

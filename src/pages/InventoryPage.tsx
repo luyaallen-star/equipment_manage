@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getDB } from "../lib/db";
 import { Download, CheckCircle, Package } from "lucide-react";
-import { downloadExcel } from "../lib/excelUtils";
+import { saveExcelWithDialog } from "../lib/excelUtils";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { useDebounce } from "../hooks/useDebounce";
 
@@ -48,7 +48,7 @@ export default function InventoryPage() {
 
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-    const handleExportExcel = () => {
+    const handleExportExcel = async () => {
         if (inventoryList.length === 0) {
             alert("출력할 데이터가 없습니다.");
             return;
@@ -61,7 +61,7 @@ export default function InventoryPage() {
             "상태": "창고보관(재고)"
         }));
 
-        downloadExcel(exportData, "창고 재고", "창고_재고_현황");
+        await saveExcelWithDialog(exportData, "창고 재고", "창고_재고_현황");
     };
 
     const filteredList = inventoryList.filter(item => {

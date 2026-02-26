@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { getDB } from "../lib/db";
 import { Upload, Package, Download, Palette, X } from "lucide-react";
 import * as XLSX from "xlsx";
-import { downloadExcel } from "../lib/excelUtils";
+import { saveExcelWithDialog } from "../lib/excelUtils";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { useDebounce } from "../hooks/useDebounce";
 
@@ -165,7 +165,7 @@ export default function EquipmentPage() {
         reader.readAsArrayBuffer(file);
     };
 
-    const handleExportExcel = () => {
+    const handleExportExcel = async () => {
         if (equipmentList.length === 0) {
             alert("출력할 데이터가 없습니다.");
             return;
@@ -175,10 +175,13 @@ export default function EquipmentPage() {
             "연번": idx + 1,
             "장비 종류": item.type,
             "시리얼 넘버": item.serial_number,
-            "상태": item.status === 'IN_STOCK' ? '창고 보관중' : (item.status === 'CHECKED_OUT' ? `불출됨 ${item.cohort_name && item.person_name ? `(${item.cohort_name} ${item.person_name})` : ''}` : '손상/파손')
+            "상태": item.status === 'IN_STOCK' ? '창고보관(재고)' : item.status === 'CHECKED_OUT' ? '불출 중' : '손상됨',
+            "사용자": item.person_name || '-',
+            "기수": item.cohort_name || '-',
+            "특이사항": item.remarks || '-'
         }));
 
-        downloadExcel(exportData, "전체장비대장", "전체_장비_대장");
+        await saveExcelWithDialog(exportData, "전체 장비 현황", "전체_장비_현황");
     };
 
     const debouncedSearchQuery = useDebounce(searchQuery, 300);

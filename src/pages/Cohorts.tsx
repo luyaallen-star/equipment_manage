@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getDB } from "../lib/db";
 import { Plus, Download, XCircle, FileText, CheckCircle2, Palette, EyeOff, Eye, RotateCcw, RefreshCw } from "lucide-react";
-import { downloadExcel } from "../lib/excelUtils";
+import { saveExcelWithDialog } from "../lib/excelUtils";
 import { CheckoutModal } from "../components/modals/CheckoutModal";
 import { RemarkModal } from "../components/modals/RemarkModal";
 import { ReturnModal } from "../components/modals/ReturnModal";
@@ -436,14 +436,14 @@ export default function CohortsPage() {
     const getDisplayName = (p: PersonnelWithCheckout) =>
         p.duplicate_tag ? `${p.personnel_name} (${p.duplicate_tag})` : p.personnel_name;
 
-    const exportExcel = () => {
+    const exportExcel = async () => {
         if (personnel.length === 0) return alert("출력할 데이터가 없습니다.");
         const cohortName = cohorts.find(c => c.id === selectedCohortId)?.name || 'Unknown';
         const exportData = personnel.map((p, idx) => ({
             "연번": idx + 1, "이름": getDisplayName(p), "장비 종류": p.equipment_type || '-',
             "시리얼넘버": p.serial_number || '-', "불출일": p.checkout_date || '-', "반납일": p.return_date ? p.return_date.substring(2).replace(/-/g, '/') : '', "특이사항": p.remarks || '-'
         }));
-        downloadExcel(exportData, cohortName, `${cohortName}_장비현황`);
+        await saveExcelWithDialog(exportData, cohortName, `${cohortName}_장비현황`);
     };
 
     return (
