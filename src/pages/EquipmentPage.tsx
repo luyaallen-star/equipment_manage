@@ -278,14 +278,15 @@ export default function EquipmentPage() {
                             <tr className="text-gray-500 uppercase tracking-wider">
                                 <th className="px-6 py-3 font-medium w-24">NO</th>
                                 <th className="px-6 py-3 font-medium w-36">장비 종류</th>
-                                <th className="px-6 py-3 font-medium w-48">시리얼 넘버</th>
-                                <th className="px-6 py-3 font-medium">현재 상태</th>
+                                <th className="px-6 py-3 font-medium w-auto whitespace-nowrap border-r border-gray-100">시리얼 넘버</th>
+                                <th className="px-6 py-3 font-medium w-48 border-r border-gray-100">현재 상태</th>
+                                <th className="px-6 py-3 font-medium min-w-[200px]">메모</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
                             {filteredList.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                                         {searchQuery ? "검색 결과가 없습니다." : "등록된 장비가 없습니다. 우측 상단의 [새 장비 대량 입고] 버튼을 이용하여 장비를 등록해주세요."}
                                     </td>
                                 </tr>
@@ -310,8 +311,8 @@ export default function EquipmentPage() {
                                                     {equip.type}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-gray-600 font-mono text-xs">{equip.serial_number}</td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-6 py-4 text-gray-600 font-mono text-xs border-r border-gray-100">{equip.serial_number}</td>
+                                            <td className="px-6 py-4 border-r border-gray-100">
                                                 <div className="flex flex-wrap gap-2 items-center">
                                                     {equip.status === 'IN_STOCK' && <StatusBadge status="IN_STOCK" label="점검 완료" />}
                                                     {equip.status === 'NEEDS_INSPECTION' && <StatusBadge status="NEEDS_INSPECTION" />}
@@ -334,11 +335,9 @@ export default function EquipmentPage() {
                                                     )}
                                                     {equip.status === 'DAMAGED' && <StatusBadge status="DAMAGED" />}
                                                 </div>
-                                                {equip.remarks && (
-                                                    <div className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 p-2 rounded-md break-words max-w-sm">
-                                                        <span className="font-semibold mr-1">메모:</span>{equip.remarks}
-                                                    </div>
-                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600 text-xs break-all">
+                                                {equip.remarks || <span className="text-gray-300">-</span>}
                                             </td>
                                         </tr>
                                     )

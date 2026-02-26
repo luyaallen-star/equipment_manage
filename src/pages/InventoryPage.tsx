@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { getDB } from "../lib/db";
-import { Download, CheckCircle, Package } from "lucide-react";
+import { Download, CheckCircle, Package, XCircle } from "lucide-react";
 import { saveExcelWithDialog } from "../lib/excelUtils";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { useDebounce } from "../hooks/useDebounce";
+import { DamageModal } from "../components/modals/DamageModal";
 
 interface InventoryItem {
     id: number;
@@ -16,6 +17,9 @@ interface InventoryItem {
 export default function InventoryPage() {
     const [inventoryList, setInventoryList] = useState<InventoryItem[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
+    const [isDamageModalOpen, setIsDamageModalOpen] = useState(false);
+    const [damageReason, setDamageReason] = useState("");
+    const [damageTarget, setDamageTarget] = useState<{ personnel_id: number; equipment_id: number; equipment_type: string; serial_number: string } | null>(null);
 
     useEffect(() => {
         loadInventory();
@@ -95,6 +99,31 @@ export default function InventoryPage() {
         }
     };
 
+    const handleDamageSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!damageTarget || !damageReason.trim()) return;
+        try {
+            const db = await getDB();
+
+            // 1. Add damage report
+            await db.execute(
+                "INSERT INTO damage_reports (equipment_id, report_date, description) VALUES ($1, $2, $3)",
+                [damageTarget.equipment_id, new Date().toISOString(), damageReason.trim()]
+            );
+
+            // 2. Change status to DAMAGED
+            await db.execute("UPDATE equipment SET status = 'DAMAGED' WHERE id = $1", [damageTarget.equipment_id]);
+
+            loadInventory();
+            setIsDamageModalOpen(false);
+            setDamageTarget(null);
+            setDamageReason("");
+        } catch (e) {
+            console.error(e);
+            alert("손상 보고 중 오류가 발생했습니다.");
+        }
+    };
+
     return (
         <div className="space-y-6 flex flex-col h-full">
             <div className="flex flex-col sm:flex-row justify-between items-start lg:items-center gap-4">
@@ -155,15 +184,16 @@ export default function InventoryPage() {
                             <tr className="text-gray-500 uppercase tracking-wider">
                                 <th className="px-6 py-3 font-medium w-24">NO</th>
                                 <th className="px-6 py-3 font-medium w-36">장비 종류</th>
-                                <th className="px-6 py-3 font-medium w-48">시리얼 넘버</th>
-                                <th className="px-6 py-3 font-medium">현재 상태</th>
-                                <th className="px-6 py-3 font-medium w-32 text-center">작업</th>
+                                <th className="px-6 py-3 font-medium w-auto whitespace-nowrap border-r border-gray-100">시리얼 넘버</th>
+                                <th className="px-6 py-3 font-medium w-40 border-r border-gray-100 text-center">현재 상태</th>
+                                <th className="px-6 py-3 font-medium border-r border-gray-100 min-w-[200px]">메모</th>
+                                <th className="px-6 py-3 font-medium w-40 text-center">작업</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
                             {filteredList.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                                         {searchQuery ? "검색 결과가 없습니다." : "창고에 남아있는 장비가 없습니다."}
                                     </td>
                                 </tr>
@@ -176,28 +206,37 @@ export default function InventoryPage() {
                                         <tr key={equip.id} className="hover:bg-emerald-50/30 transition-colors">
                                             <td className="px-6 py-4 text-gray-500 font-mono text-xs">{filterIndex}</td>
                                             <td className="px-6 py-4 font-medium text-gray-900">{equip.type}</td>
-                                            <td className="px-6 py-4 text-gray-600 font-mono text-xs">{equip.serial_number}</td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-6 py-4 text-gray-600 font-mono text-xs border-r border-gray-100">{equip.serial_number}</td>
+                                            <td className="px-6 py-4 border-r border-gray-100 text-center">
                                                 {equip.status === 'NEEDS_INSPECTION' ? (
                                                     <StatusBadge status="NEEDS_INSPECTION" label="점검 대기" />
                                                 ) : (
                                                     <StatusBadge status="IN_STOCK" label="점검 완료" />
                                                 )}
-                                                {equip.remarks && (
-                                                    <div className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 p-2 rounded-md break-words max-w-sm">
-                                                        <span className="font-semibold mr-1">이전 메모:</span>{equip.remarks}
-                                                    </div>
-                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600 text-xs border-r border-gray-100 break-all">
+                                                {equip.remarks || <span className="text-gray-300">-</span>}
                                             </td>
                                             <td className="px-6 py-4 text-center align-top">
-                                                {equip.status === 'NEEDS_INSPECTION' && (
+                                                <div className="flex justify-center gap-1.5 flex-wrap">
+                                                    {equip.status === 'NEEDS_INSPECTION' && (
+                                                        <button
+                                                            onClick={() => handleMarkInspected(equip.id)}
+                                                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium text-xs rounded border border-indigo-200 transition-colors whitespace-nowrap"
+                                                        >
+                                                            점검 완료
+                                                        </button>
+                                                    )}
                                                     <button
-                                                        onClick={() => handleMarkInspected(equip.id)}
-                                                        className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium text-xs rounded border border-indigo-200 transition-colors whitespace-nowrap"
+                                                        onClick={() => {
+                                                            setDamageTarget({ personnel_id: 0, equipment_id: equip.id, equipment_type: equip.type, serial_number: equip.serial_number });
+                                                            setIsDamageModalOpen(true);
+                                                        }}
+                                                        className="px-2 py-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-700 rounded border border-red-200 flex items-center gap-1 font-medium title='장비 손상 보고'"
                                                     >
-                                                        점검 완료
+                                                        <XCircle className="w-3.5 h-3.5" /> 손상
                                                     </button>
-                                                )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -207,6 +246,16 @@ export default function InventoryPage() {
                     </table>
                 </div>
             </div>
+
+            {/* Damage Modal */}
+            <DamageModal
+                isOpen={isDamageModalOpen}
+                onClose={() => setIsDamageModalOpen(false)}
+                onSubmit={handleDamageSubmit}
+                damageTarget={damageTarget}
+                damageReason={damageReason}
+                setDamageReason={setDamageReason}
+            />
         </div>
     );
 }

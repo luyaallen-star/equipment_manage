@@ -690,8 +690,9 @@ export default function CohortsPage() {
                                                 <th className="px-4 py-3 font-medium w-12">연번</th>
                                                 <th className="px-4 py-3 font-medium w-32">이름</th>
                                                 <th className="px-4 py-3 font-medium">장비종류</th>
-                                                <th className="px-4 py-3 font-medium border-r border-gray-100">시리얼넘버</th>
+                                                <th className="px-4 py-3 font-medium w-auto whitespace-nowrap border-r border-gray-100">시리얼넘버</th>
                                                 <th className="px-4 py-3 font-medium border-r border-gray-100 w-28 text-center">반납일</th>
+                                                <th className="px-4 py-3 font-medium border-r border-gray-100 min-w-[200px]">메모</th>
                                                 <th className="px-4 py-3 font-medium text-center">장비 관리 액션</th>
                                             </tr>
                                         </thead>
@@ -712,7 +713,6 @@ export default function CohortsPage() {
                                                         <td className="px-4 py-4 text-gray-500">{idx + 1}</td>
                                                         <td className="px-4 py-4 font-medium text-gray-900">
                                                             {getDisplayName(p)}
-                                                            {p.remarks && <div className="text-xs text-blue-600 mt-1 truncate max-w-[120px]" title={p.remarks}>* {p.remarks}</div>}
                                                         </td>
                                                         <td className="px-4 py-4 text-gray-600">
                                                             {p.equipment_type || <span className="text-gray-300">-</span>}
@@ -731,6 +731,9 @@ export default function CohortsPage() {
                                                         </td>
                                                         <td className="px-4 py-4 text-gray-500 font-mono text-center text-xs border-r border-gray-100">
                                                             {p.return_date ? p.return_date.substring(2).replace(/-/g, '/') : ""}
+                                                        </td>
+                                                        <td className="px-4 py-4 text-gray-600 text-xs border-r border-gray-100 break-all">
+                                                            {p.remarks || <span className="text-gray-300">-</span>}
                                                         </td>
                                                         <td className="px-4 py-4">
                                                             <div className="flex justify-center gap-1.5">
