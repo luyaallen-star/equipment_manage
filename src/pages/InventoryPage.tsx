@@ -37,8 +37,8 @@ export default function InventoryPage() {
                     FROM checkouts c1
                     WHERE id = (SELECT MAX(id) FROM checkouts c2 WHERE c2.equipment_id = c1.equipment_id)
                 ) last_ck ON e.id = last_ck.equipment_id
-                WHERE e.status = 'IN_STOCK'
-                ORDER BY e.type ASC, e.id DESC
+                WHERE e.status IN ('IN_STOCK', 'NEEDS_INSPECTION')
+                ORDER BY e.status DESC, e.type ASC, e.id DESC
             `);
             setInventoryList(result);
         } catch (error) {
@@ -58,7 +58,7 @@ export default function InventoryPage() {
             "연번": idx + 1,
             "장비 종류": item.type,
             "시리얼 넘버": item.serial_number,
-            "상태": "창고보관(재고)"
+            "상태": item.status === 'IN_STOCK' ? "점검 완료(불출 가능)" : "점검 미완료(대기)"
         }));
 
         await saveExcelWithDialog(exportData, "창고 재고", "창고_재고_현황");
@@ -76,18 +76,31 @@ export default function InventoryPage() {
         return query.split(/\s+/).every(term => searchableText.includes(term));
     });
 
-    // Compute sums by equipment type
+    // Compute sums by equipment type only for IN_STOCK
     const typeCounts = inventoryList.reduce((acc, item) => {
-        acc[item.type] = (acc[item.type] || 0) + 1;
+        if (item.status === 'IN_STOCK') {
+            acc[item.type] = (acc[item.type] || 0) + 1;
+        }
         return acc;
     }, {} as Record<string, number>);
+
+    const handleMarkInspected = async (id: number) => {
+        try {
+            const db = await getDB();
+            await db.execute("UPDATE equipment SET status = 'IN_STOCK' WHERE id = $1", [id]);
+            loadInventory();
+        } catch (error) {
+            console.error(error);
+            alert("상태 변경에 실패했습니다.");
+        }
+    };
 
     return (
         <div className="space-y-6 flex flex-col h-full">
             <div className="flex flex-col sm:flex-row justify-between items-start lg:items-center gap-4">
                 <h2 className="text-2xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
                     <CheckCircle className="w-6 h-6 text-emerald-600" />
-                    창고 보유 장비 대장 (가용 재고)
+                    창고 보유 장비 관리
                 </h2>
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                     <input
@@ -112,7 +125,7 @@ export default function InventoryPage() {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                     <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-3">
                         <Package className="w-4 h-4 text-gray-500" />
-                        보유 장비 통계
+                        불출 가능 장비 현황
                     </h3>
                     <div className="flex flex-wrap gap-2">
                         {Object.entries(typeCounts).sort(([a], [b]) => a.localeCompare(b)).map(([type, count]) => (
@@ -132,7 +145,7 @@ export default function InventoryPage() {
             <div className="bg-white rounded-xl shadow-sm border border-emerald-100 flex-1 flex flex-col overflow-hidden">
                 <div className="p-4 border-b border-emerald-50 bg-emerald-50/30 flex justify-between items-center">
                     <h3 className="font-semibold text-emerald-900">
-                        즉시 불출 가능한 장비 현황 (총 {filteredList.length}대 검색됨)
+                        창고 장비 목록 (총 {filteredList.length}대 검색됨)
                     </h3>
                 </div>
 
@@ -144,12 +157,13 @@ export default function InventoryPage() {
                                 <th className="px-6 py-3 font-medium w-36">장비 종류</th>
                                 <th className="px-6 py-3 font-medium w-48">시리얼 넘버</th>
                                 <th className="px-6 py-3 font-medium">현재 상태</th>
+                                <th className="px-6 py-3 font-medium w-32 text-center">작업</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
                             {filteredList.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                                         {searchQuery ? "검색 결과가 없습니다." : "창고에 남아있는 장비가 없습니다."}
                                     </td>
                                 </tr>
@@ -164,11 +178,25 @@ export default function InventoryPage() {
                                             <td className="px-6 py-4 font-medium text-gray-900">{equip.type}</td>
                                             <td className="px-6 py-4 text-gray-600 font-mono text-xs">{equip.serial_number}</td>
                                             <td className="px-6 py-4">
-                                                <StatusBadge status="IN_STOCK" label="창고 보관중" />
+                                                {equip.status === 'NEEDS_INSPECTION' ? (
+                                                    <StatusBadge status="NEEDS_INSPECTION" label="점검 대기" />
+                                                ) : (
+                                                    <StatusBadge status="IN_STOCK" label="점검 완료" />
+                                                )}
                                                 {equip.remarks && (
                                                     <div className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 p-2 rounded-md break-words max-w-sm">
                                                         <span className="font-semibold mr-1">이전 메모:</span>{equip.remarks}
                                                     </div>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-center align-top">
+                                                {equip.status === 'NEEDS_INSPECTION' && (
+                                                    <button
+                                                        onClick={() => handleMarkInspected(equip.id)}
+                                                        className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium text-xs rounded border border-indigo-200 transition-colors whitespace-nowrap"
+                                                    >
+                                                        점검 완료
+                                                    </button>
                                                 )}
                                             </td>
                                         </tr>

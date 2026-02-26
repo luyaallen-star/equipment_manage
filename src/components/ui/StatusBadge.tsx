@@ -1,4 +1,4 @@
-type BadgeStatus = 'IN_STOCK' | 'CHECKED_OUT' | 'DAMAGED';
+type BadgeStatus = 'IN_STOCK' | 'NEEDS_INSPECTION' | 'CHECKED_OUT' | 'DAMAGED';
 
 interface StatusBadgeProps {
     status: BadgeStatus | string;
@@ -10,6 +10,14 @@ export function StatusBadge({ status, label }: StatusBadgeProps) {
         return (
             <span className="inline-block px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold shrink-0">
                 {label || '창고 보관중'}
+            </span>
+        );
+    }
+
+    if (status === 'NEEDS_INSPECTION') {
+        return (
+            <span className="inline-block px-2.5 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold shrink-0">
+                {label || '점검 대기'}
             </span>
         );
     }

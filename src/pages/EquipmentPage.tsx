@@ -10,7 +10,7 @@ interface EquipmentItem {
     id: number;
     type: string;
     serial_number: string;
-    status: string; // IN_STOCK, CHECKED_OUT, DAMAGED
+    status: string; // IN_STOCK, NEEDS_INSPECTION, CHECKED_OUT, DAMAGED
     cohort_name?: string;
     person_name?: string;
     cohort_color?: string;
@@ -58,9 +58,10 @@ export default function EquipmentPage() {
                 GROUP BY e.id
                 ORDER BY CASE e.status
                     WHEN 'IN_STOCK' THEN 1
-                    WHEN 'CHECKED_OUT' THEN 2
-                    WHEN 'DAMAGED' THEN 3
-                    ELSE 4
+                    WHEN 'NEEDS_INSPECTION' THEN 2
+                    WHEN 'CHECKED_OUT' THEN 3
+                    WHEN 'DAMAGED' THEN 4
+                    ELSE 5
                 END, e.type ASC, e.id DESC
             `);
             setEquipmentList(result);
@@ -185,7 +186,7 @@ export default function EquipmentPage() {
             "연번": idx + 1,
             "장비 종류": item.type,
             "시리얼 넘버": item.serial_number,
-            "상태": item.status === 'IN_STOCK' ? '창고보관(재고)' : item.status === 'CHECKED_OUT' ? '불출 중' : '손상됨',
+            "상태": item.status === 'IN_STOCK' ? '점검 완료(불출 가능)' : item.status === 'NEEDS_INSPECTION' ? '점검 미완료(대기)' : item.status === 'CHECKED_OUT' ? '불출 중' : '손상됨',
             "사용자": item.person_name || '-',
             "기수": item.cohort_name || '-',
             "특이사항": item.remarks || '-'
@@ -312,7 +313,8 @@ export default function EquipmentPage() {
                                             <td className="px-6 py-4 text-gray-600 font-mono text-xs">{equip.serial_number}</td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-wrap gap-2 items-center">
-                                                    {equip.status === 'IN_STOCK' && <StatusBadge status="IN_STOCK" />}
+                                                    {equip.status === 'IN_STOCK' && <StatusBadge status="IN_STOCK" label="점검 완료" />}
+                                                    {equip.status === 'NEEDS_INSPECTION' && <StatusBadge status="NEEDS_INSPECTION" />}
                                                     {equip.status === 'CHECKED_OUT' && (
                                                         <div className="flex items-center gap-2">
                                                             <StatusBadge status="CHECKED_OUT" />

@@ -8,6 +8,7 @@ import { useGlobalData } from "../contexts/GlobalDataContext";
 interface DashboardStats {
     totalEquipment: number;
     inStock: number;
+    needsInspection: number;
     checkedOut: number;
     damaged: number;
 }
@@ -25,7 +26,7 @@ interface EquipmentTypeStat {
 }
 
 export default function Dashboard() {
-    const [stats, setStats] = useState<DashboardStats>({ totalEquipment: 0, inStock: 0, checkedOut: 0, damaged: 0 });
+    const [stats, setStats] = useState<DashboardStats>({ totalEquipment: 0, inStock: 0, needsInspection: 0, checkedOut: 0, damaged: 0 });
     const [typeStats, setTypeStats] = useState<EquipmentTypeStat[]>([]);
     const [cohortSummaries, setCohortSummaries] = useState<CohortSummary[]>([]);
     const { cohorts } = useGlobalData();
@@ -40,6 +41,7 @@ export default function Dashboard() {
           SELECT 
             COUNT(*) as totalEquipment,
             SUM(CASE WHEN status = 'IN_STOCK' THEN 1 ELSE 0 END) as inStock,
+            SUM(CASE WHEN status = 'NEEDS_INSPECTION' THEN 1 ELSE 0 END) as needsInspection,
             SUM(CASE WHEN status = 'CHECKED_OUT' THEN 1 ELSE 0 END) as checkedOut,
             SUM(CASE WHEN status = 'DAMAGED' THEN 1 ELSE 0 END) as damaged
           FROM equipment
@@ -49,6 +51,7 @@ export default function Dashboard() {
                     setStats({
                         totalEquipment: result[0].totalEquipment || 0,
                         inStock: result[0].inStock || 0,
+                        needsInspection: result[0].needsInspection || 0,
                         checkedOut: result[0].checkedOut || 0,
                         damaged: result[0].damaged || 0
                     });
@@ -223,6 +226,7 @@ export default function Dashboard() {
                   SELECT 
                     COUNT(*) as totalEquipment,
                     SUM(CASE WHEN status = 'IN_STOCK' THEN 1 ELSE 0 END) as inStock,
+                    SUM(CASE WHEN status = 'NEEDS_INSPECTION' THEN 1 ELSE 0 END) as needsInspection,
                     SUM(CASE WHEN status = 'CHECKED_OUT' THEN 1 ELSE 0 END) as checkedOut,
                     SUM(CASE WHEN status = 'DAMAGED' THEN 1 ELSE 0 END) as damaged
                   FROM equipment
@@ -232,6 +236,7 @@ export default function Dashboard() {
                     setStats({
                         totalEquipment: newStatsResult[0].totalEquipment || 0,
                         inStock: newStatsResult[0].inStock || 0,
+                        needsInspection: newStatsResult[0].needsInspection || 0,
                         checkedOut: newStatsResult[0].checkedOut || 0,
                         damaged: newStatsResult[0].damaged || 0
                     });
@@ -328,9 +333,10 @@ export default function Dashboard() {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <StatCard title="총 운용 장비" value={stats.totalEquipment} color="bg-blue-50 text-blue-700" />
-                <StatCard title="창고 보관 (재고)" value={stats.inStock} color="bg-emerald-50 text-emerald-700" />
+                <StatCard title="점검 완료 (불출 가능)" value={stats.inStock} color="bg-emerald-50 text-emerald-700" />
+                <StatCard title="점검 미완료 (대기)" value={stats.needsInspection} color="bg-purple-50 text-purple-700" />
                 <StatCard title="불출 중" value={stats.checkedOut} color="bg-amber-50 text-amber-700" />
                 <StatCard title="손상 장비" value={stats.damaged} color="bg-red-50 text-red-700" />
             </div>

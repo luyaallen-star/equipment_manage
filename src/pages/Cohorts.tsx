@@ -262,10 +262,10 @@ export default function CohortsPage() {
             const dateStr = new Date().toISOString().split('T')[0];
             await db.execute("UPDATE checkouts SET return_date = $1 WHERE id = $2", [dateStr, returnTarget.checkout_id]);
 
-            // Only update to IN_STOCK if it's not DAMAGED
+            // Update status to NEEDS_INSPECTION to require check before next checkout
             const oldStatus: any[] = await db.select("SELECT status FROM equipment WHERE id = $1", [returnTarget.equipment_id]);
             if (oldStatus.length > 0 && oldStatus[0].status !== 'DAMAGED') {
-                await db.execute("UPDATE equipment SET status = 'IN_STOCK' WHERE id = $1", [returnTarget.equipment_id]);
+                await db.execute("UPDATE equipment SET status = 'NEEDS_INSPECTION' WHERE id = $1", [returnTarget.equipment_id]);
             }
 
             setIsReturnModalOpen(false);
@@ -359,10 +359,10 @@ export default function CohortsPage() {
                 newEquipmentId = res.lastInsertId;
             }
 
-            // 2. Clear out the old equipment status (unless it was DAMAGED)
+            // 2. Set the old equipment status to NEEDS_INSPECTION (unless it was DAMAGED)
             const oldEquipmentDetails: any[] = await db.select("SELECT status FROM equipment WHERE id = $1", [replaceTarget.equipment_id]);
             if (oldEquipmentDetails.length > 0 && oldEquipmentDetails[0].status !== 'DAMAGED') {
-                await db.execute("UPDATE equipment SET status = 'IN_STOCK' WHERE id = $1", [replaceTarget.equipment_id]);
+                await db.execute("UPDATE equipment SET status = 'NEEDS_INSPECTION' WHERE id = $1", [replaceTarget.equipment_id]);
             }
 
             // 3. Prepare the previous serials string
