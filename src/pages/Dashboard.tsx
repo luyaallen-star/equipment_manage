@@ -29,7 +29,7 @@ export default function Dashboard() {
     const [stats, setStats] = useState<DashboardStats>({ totalEquipment: 0, inStock: 0, needsInspection: 0, checkedOut: 0, damaged: 0 });
     const [typeStats, setTypeStats] = useState<EquipmentTypeStat[]>([]);
     const [cohortSummaries, setCohortSummaries] = useState<CohortSummary[]>([]);
-    const { cohorts } = useGlobalData();
+    const { } = useGlobalData();
 
     useEffect(() => {
         async function loadData() {
@@ -66,27 +66,24 @@ export default function Dashboard() {
                 `);
                 setTypeStats(typeResult);
 
-                // Fetch cohort-specific stats using cached cohorts to generate names and colors
+                // Fetch cohort-specific stats
                 const groupResult: any[] = await db.select(`
-          SELECT c.id as cohortId, e.type as equipmentType, COUNT(e.id) as count
-          FROM checkouts ck
-          JOIN personnel p ON ck.personnel_id = p.id
-          JOIN cohorts c ON p.cohort_id = c.id
-          JOIN equipment e ON ck.equipment_id = e.id
-          WHERE ck.return_date IS NULL
-          GROUP BY c.id, e.type
-          ORDER BY c.sort_order ASC
-        `);
+                  SELECT c.name as cohortName, c.color as cohortColor, e.type as equipmentType, COUNT(e.id) as count
+                  FROM checkouts ck
+                  JOIN personnel p ON ck.personnel_id = p.id
+                  JOIN cohorts c ON p.cohort_id = c.id
+                  JOIN equipment e ON ck.equipment_id = e.id
+                  WHERE ck.return_date IS NULL
+                  GROUP BY c.id, e.type
+                  ORDER BY c.sort_order ASC
+                `);
 
-                const formattedGroupResult = groupResult.map(row => {
-                    const matchedCohort = cohorts.find(c => c.id === row.cohortId);
-                    return {
-                        cohortName: matchedCohort ? matchedCohort.name : "알 수 없는 기수",
-                        equipmentType: row.equipmentType,
-                        count: row.count,
-                        cohortColor: matchedCohort ? matchedCohort.color : null
-                    };
-                });
+                const formattedGroupResult = groupResult.map(row => ({
+                    cohortName: row.cohortName || "알 수 없는 기수",
+                    equipmentType: row.equipmentType,
+                    count: row.count,
+                    cohortColor: row.cohortColor || null
+                }));
 
                 setCohortSummaries(formattedGroupResult);
 
@@ -251,7 +248,7 @@ export default function Dashboard() {
                 setTypeStats(newTypeResult);
 
                 const newGroupResult: any[] = await db.select(`
-                  SELECT c.name as cohortName, e.type as equipmentType, COUNT(e.id) as count
+                  SELECT c.name as cohortName, c.color as cohortColor, e.type as equipmentType, COUNT(e.id) as count
                   FROM checkouts ck
                   JOIN personnel p ON ck.personnel_id = p.id
                   JOIN cohorts c ON p.cohort_id = c.id
@@ -261,15 +258,12 @@ export default function Dashboard() {
                   ORDER BY c.sort_order ASC
                 `);
 
-                const formattedGroupResult = newGroupResult.map(row => {
-                    const matchedCohort = cohorts.find(c => c.name === row.cohortName);
-                    return {
-                        cohortName: row.cohortName,
-                        equipmentType: row.equipmentType,
-                        count: row.count,
-                        cohortColor: matchedCohort ? matchedCohort.color : null
-                    };
-                });
+                const formattedGroupResult = newGroupResult.map(row => ({
+                    cohortName: row.cohortName || "알 수 없는 기수",
+                    equipmentType: row.equipmentType,
+                    count: row.count,
+                    cohortColor: row.cohortColor || null
+                }));
                 setCohortSummaries(formattedGroupResult);
 
             } catch (err) {
