@@ -36,48 +36,6 @@ export default function Dashboard() {
             try {
                 const db = await getDB();
 
-                // --- DATA PATCH: Fix equipment shared by multiple active checkouts (due to 'N/A' serials) ---
-                const sharedEqs: any[] = await db.select(`
-                    SELECT equipment_id, COUNT(id) as c 
-                    FROM checkouts 
-                    WHERE return_date IS NULL 
-                    GROUP BY equipment_id 
-                    HAVING c > 1
-                `);
-
-                if (sharedEqs.length > 0) {
-                    console.log(`Found ${sharedEqs.length} equipments shared by multiple checkouts. Patching...`);
-                    for (const row of sharedEqs) {
-                        const eqId = row.equipment_id;
-                        // Get all active checkouts for this equipment
-                        const activeCks: any[] = await db.select(
-                            "SELECT id, personnel_id FROM checkouts WHERE equipment_id = $1 AND return_date IS NULL ORDER BY id ASC",
-                            [eqId]
-                        );
-                        // The first checkout gets to keep the original equipment. 
-                        // The others get a cloned equipment with a unique serial.
-                        const eqRes: any[] = await db.select("SELECT * FROM equipment WHERE id = $1", [eqId]);
-                        if (eqRes.length > 0) {
-                            const eqType = eqRes[0].type;
-                            for (let i = 1; i < activeCks.length; i++) {
-                                const ckId = activeCks[i].id;
-                                const pId = activeCks[i].personnel_id;
-                                const newSerial = `미상-${pId}-${Date.now()}-${i}`;
-                                const newEqRes = await db.execute(
-                                    "INSERT INTO equipment (type, serial_number, status) VALUES ($1, $2, 'CHECKED_OUT')",
-                                    [eqType, newSerial]
-                                );
-                                await db.execute(
-                                    "UPDATE checkouts SET equipment_id = $1 WHERE id = $2",
-                                    [newEqRes.lastInsertId, ckId]
-                                );
-                            }
-                            console.log(`Patched equipment ID ${eqId} by cloning it ${activeCks.length - 1} time(s).`);
-                        }
-                    }
-                }
-                // --- END DATA PATCH ---
-
                 // Fetch overall stats
                 const result: any[] = await db.select(`
           SELECT 
@@ -231,24 +189,7 @@ export default function Dashboard() {
                     }
 
                     // 3. Equipment & Checkout
-                    const isUnknownSerial = !serialNum || serialNum === "-" || serialNum.toLowerCase() === "n/a" || serialNum.includes("없음") || serialNum.includes("미상") || serialNum === "";
-
-                    if (equipmentType) {
-                        if (isUnknownSerial) {
-                            // Prevent duplicate unknowns for this type
-                            const existingTypeCk: any[] = await db.select(`
-                                SELECT ck.id FROM checkouts ck 
-                                JOIN equipment e ON ck.equipment_id = e.id 
-                                WHERE ck.personnel_id = $1 AND e.type = $2 AND ck.return_date IS NULL
-                            `, [personId, equipmentType]);
-
-                            if (existingTypeCk.length > 0) {
-                                // Already checked out this type, skip duplicate N/A
-                                continue;
-                            }
-                            serialNum = `미상-${personId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-                        }
-
+                    if (equipmentType && serialNum) {
                         let equipRes: any[] = await db.select("SELECT id, status FROM equipment WHERE serial_number = $1", [serialNum]);
                         let equipId;
 
