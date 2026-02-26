@@ -19,8 +19,14 @@ interface CohortSummary {
     cohortColor: string | null;
 }
 
+interface EquipmentTypeStat {
+    type: string;
+    total: number;
+}
+
 export default function Dashboard() {
     const [stats, setStats] = useState<DashboardStats>({ totalEquipment: 0, inStock: 0, checkedOut: 0, damaged: 0 });
+    const [typeStats, setTypeStats] = useState<EquipmentTypeStat[]>([]);
     const [cohortSummaries, setCohortSummaries] = useState<CohortSummary[]>([]);
     const { cohorts } = useGlobalData();
 
@@ -47,6 +53,15 @@ export default function Dashboard() {
                         damaged: result[0].damaged || 0
                     });
                 }
+
+                // Fetch equipment type breakdowns
+                const typeResult: any[] = await db.select(`
+                    SELECT type, COUNT(*) as total
+                    FROM equipment
+                    GROUP BY type
+                    ORDER BY type ASC
+                `);
+                setTypeStats(typeResult);
 
                 // Fetch cohort-specific stats using cached cohorts to generate names and colors
                 const groupResult: any[] = await db.select(`
@@ -319,6 +334,21 @@ export default function Dashboard() {
                 <StatCard title="불출 중" value={stats.checkedOut} color="bg-amber-50 text-amber-700" />
                 <StatCard title="손상 장비" value={stats.damaged} color="bg-red-50 text-red-700" />
             </div>
+
+            {/* Equipment Type Breakdown */}
+            {typeStats.length > 0 && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mt-8 flex flex-wrap items-center gap-4">
+                    <span className="text-sm font-semibold text-gray-500 border-r border-gray-200 xl:min-w-fit pr-4">장비별 운용 대수</span>
+                    <div className="flex flex-wrap gap-x-6 gap-y-3">
+                        {typeStats.map(ts => (
+                            <div key={ts.type} className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-gray-700">{ts.type}</span>
+                                <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-0.5 rounded-full">{ts.total}대</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Cohort Summary Pivot Table */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-8">
