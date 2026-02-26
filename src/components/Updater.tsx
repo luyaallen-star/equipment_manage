@@ -9,7 +9,7 @@ export default function Updater() {
         checkForAppUpdates();
     }, []);
 
-    async function checkForAppUpdates() {
+    async function checkForAppUpdates(showNoUpdateMsg = false) {
         try {
             const update = await check();
 
@@ -64,12 +64,29 @@ export default function Updater() {
                     // Once downloaded and installed, relaunch the app
                     await relaunch();
                 }
+            } else {
+                if (showNoUpdateMsg) {
+                    Swal.fire({
+                        title: "업데이트 확인",
+                        text: "현재 최신 버전을 사용 중입니다.",
+                        icon: "success",
+                        confirmButtonColor: "#3b82f6"
+                    });
+                }
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to check for updates:", error);
-            // Optionally could notify user if update check failed, but usually silent is better for UX.
+            Swal.fire({
+                title: "업데이트 확인 실패",
+                html: `업데이트를 확인하는 중 오류가 발생했습니다.<br/><br/><span style="color:red; font-size: 13px;">${error.message || error}</span>`,
+                icon: "error",
+                confirmButtonColor: "#d33"
+            });
         }
     }
+
+    // Expose the manual check so it can be triggered globally if needed
+    (window as any).manualUpdateCheck = () => checkForAppUpdates(true);
 
     return null; // This is a headless component
 }

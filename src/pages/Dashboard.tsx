@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { getDB } from "../lib/db";
-import { Download, Upload, FileText } from "lucide-react";
+import { Download, Upload, FileText, RefreshCw } from "lucide-react";
 import { downloadExcel, saveExcelWithDialog } from "../lib/excelUtils";
 import * as XLSX from "xlsx";
 import { useGlobalData } from "../contexts/GlobalDataContext";
@@ -35,6 +35,48 @@ export default function Dashboard() {
         async function loadData() {
             try {
                 const db = await getDB();
+
+                // --- DATA PATCH: Fix equipment shared by multiple active checkouts (due to 'N/A' serials) ---
+                const sharedEqs: any[] = await db.select(`
+                    SELECT equipment_id, COUNT(id) as c 
+                    FROM checkouts 
+                    WHERE return_date IS NULL 
+                    GROUP BY equipment_id 
+                    HAVING c > 1
+                `);
+
+                if (sharedEqs.length > 0) {
+                    console.log(`Found ${sharedEqs.length} equipments shared by multiple checkouts. Patching...`);
+                    for (const row of sharedEqs) {
+                        const eqId = row.equipment_id;
+                        // Get all active checkouts for this equipment
+                        const activeCks: any[] = await db.select(
+                            "SELECT id, personnel_id FROM checkouts WHERE equipment_id = $1 AND return_date IS NULL ORDER BY id ASC",
+                            [eqId]
+                        );
+                        // The first checkout gets to keep the original equipment. 
+                        // The others get a cloned equipment with a unique serial.
+                        const eqRes: any[] = await db.select("SELECT * FROM equipment WHERE id = $1", [eqId]);
+                        if (eqRes.length > 0) {
+                            const eqType = eqRes[0].type;
+                            for (let i = 1; i < activeCks.length; i++) {
+                                const ckId = activeCks[i].id;
+                                const pId = activeCks[i].personnel_id;
+                                const newSerial = `미상-${pId}-${Date.now()}-${i}`;
+                                const newEqRes = await db.execute(
+                                    "INSERT INTO equipment (type, serial_number, status) VALUES ($1, $2, 'CHECKED_OUT')",
+                                    [eqType, newSerial]
+                                );
+                                await db.execute(
+                                    "UPDATE checkouts SET equipment_id = $1 WHERE id = $2",
+                                    [newEqRes.lastInsertId, ckId]
+                                );
+                            }
+                            console.log(`Patched equipment ID ${eqId} by cloning it ${activeCks.length - 1} time(s).`);
+                        }
+                    }
+                }
+                // --- END DATA PATCH ---
 
                 // Fetch overall stats
                 const result: any[] = await db.select(`
@@ -145,7 +187,7 @@ export default function Dashboard() {
                     const cohortName = String(row[cohortIdx]).trim();
                     const personNameFull = String(row[nameIdx]).trim();
                     const equipmentType = typeIdx !== -1 && row[typeIdx] ? String(row[typeIdx]).trim() : null;
-                    const serialNum = serialIdx !== -1 && row[serialIdx] ? String(row[serialIdx]).trim() : null;
+                    let serialNum = serialIdx !== -1 && row[serialIdx] ? String(row[serialIdx]).trim() : null;
                     const cDate = dateIdx !== -1 && row[dateIdx] ? String(row[dateIdx]).trim() : new Date().toISOString().split('T')[0];
                     const remark = remarkIdx !== -1 && row[remarkIdx] ? String(row[remarkIdx]).trim() : null;
 
@@ -189,7 +231,24 @@ export default function Dashboard() {
                     }
 
                     // 3. Equipment & Checkout
-                    if (equipmentType && serialNum) {
+                    const isUnknownSerial = !serialNum || serialNum === "-" || serialNum.toLowerCase() === "n/a" || serialNum.includes("없음") || serialNum.includes("미상") || serialNum === "";
+
+                    if (equipmentType) {
+                        if (isUnknownSerial) {
+                            // Prevent duplicate unknowns for this type
+                            const existingTypeCk: any[] = await db.select(`
+                                SELECT ck.id FROM checkouts ck 
+                                JOIN equipment e ON ck.equipment_id = e.id 
+                                WHERE ck.personnel_id = $1 AND e.type = $2 AND ck.return_date IS NULL
+                            `, [personId, equipmentType]);
+
+                            if (existingTypeCk.length > 0) {
+                                // Already checked out this type, skip duplicate N/A
+                                continue;
+                            }
+                            serialNum = `미상-${personId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+                        }
+
                         let equipRes: any[] = await db.select("SELECT id, status FROM equipment WHERE serial_number = $1", [serialNum]);
                         let equipId;
 
@@ -242,6 +301,14 @@ export default function Dashboard() {
                     });
                 }
 
+                const newTypeResult: any[] = await db.select(`
+                    SELECT type, COUNT(*) as total
+                    FROM equipment
+                    GROUP BY type
+                    ORDER BY type ASC
+                `);
+                setTypeStats(newTypeResult);
+
                 const newGroupResult: any[] = await db.select(`
                   SELECT c.name as cohortName, e.type as equipmentType, COUNT(e.id) as count
                   FROM checkouts ck
@@ -250,9 +317,19 @@ export default function Dashboard() {
                   JOIN equipment e ON ck.equipment_id = e.id
                   WHERE ck.return_date IS NULL
                   GROUP BY c.id, e.type
-                  ORDER BY c.name
+                  ORDER BY c.sort_order ASC
                 `);
-                setCohortSummaries(newGroupResult);
+
+                const formattedGroupResult = newGroupResult.map(row => {
+                    const matchedCohort = cohorts.find(c => c.name === row.cohortName);
+                    return {
+                        cohortName: row.cohortName,
+                        equipmentType: row.equipmentType,
+                        count: row.count,
+                        cohortColor: matchedCohort ? matchedCohort.color : null
+                    };
+                });
+                setCohortSummaries(formattedGroupResult);
 
             } catch (err) {
                 console.error("Excel import failed:", err);
@@ -328,6 +405,19 @@ export default function Dashboard() {
                     >
                         <Download className="w-4 h-4" />
                         불출현황 내보내기
+                    </button>
+                    <button
+                        onClick={() => {
+                            if ((window as any).manualUpdateCheck) {
+                                (window as any).manualUpdateCheck();
+                            } else {
+                                alert("업데이트 확인 기능을 찾을 수 없습니다.");
+                            }
+                        }}
+                        className="flex items-center gap-2 bg-purple-50 border border-purple-200 hover:bg-purple-100 text-purple-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+                    >
+                        <RefreshCw className="w-4 h-4" />
+                        업데이트 확인
                     </button>
                 </div>
             </div>

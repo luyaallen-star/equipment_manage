@@ -9,6 +9,7 @@ import { DamageModal } from "../components/modals/DamageModal";
 import { ReplaceModal } from "../components/modals/ReplaceModal";
 import { UndoConfirmModal } from "../components/modals/UndoConfirmModal";
 import { ColorModal } from "../components/modals/ColorModal";
+import { BatchReturnModal } from "../components/modals/BatchReturnModal";
 import { useGlobalData } from "../contexts/GlobalDataContext";
 
 
@@ -40,6 +41,9 @@ export default function CohortsPage() {
     const [newPersonTag, setNewPersonTag] = useState("");
     const [showTagInput, setShowTagInput] = useState(false);
 
+    // Batch Processing State
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
     useEffect(() => {
         refreshData();
     }, [refreshData]);
@@ -57,6 +61,11 @@ export default function CohortsPage() {
             setSelectedCohortId(cohorts[0].id);
         }
     }, [cohorts, selectedCohortId]);
+
+    // Clear selection when cohort changes
+    useEffect(() => {
+        setSelectedIds(new Set());
+    }, [selectedCohortId]);
 
     async function loadPersonnel(cohortId: number) {
         try {
@@ -196,6 +205,9 @@ export default function CohortsPage() {
     const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
     const [returnTarget, setReturnTarget] = useState<PersonnelWithCheckout | null>(null);
 
+    // --- Batch Modal States ---
+    const [isBatchReturnModalOpen, setIsBatchReturnModalOpen] = useState(false);
+
     const [isReplaceModalOpen, setIsReplaceModalOpen] = useState(false);
     const [replaceTarget, setReplaceTarget] = useState<PersonnelWithCheckout | null>(null);
     const [replaceType, setReplaceType] = useState("");
@@ -276,6 +288,39 @@ export default function CohortsPage() {
         } catch (error) {
             console.error(error);
             alert("반납 처리에 실패했습니다.");
+        }
+    };
+
+    // --- Batch Action Handlers ---
+    const submitBatchReturn = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const db = await getDB();
+            const dateStr = new Date().toISOString().split('T')[0];
+            const selectedPersonnel = personnel.filter(p => selectedIds.has(p.personnel_id) && p.status === 'CHECKED_OUT' && p.checkout_id);
+
+            if (selectedPersonnel.length === 0) {
+                alert("선택된 인원 중 반납 가능한 불출 장비가 없습니다.");
+                return;
+            }
+
+            for (const p of selectedPersonnel) {
+                await db.execute("UPDATE checkouts SET return_date = $1 WHERE id = $2", [dateStr, p.checkout_id]);
+                // Ensure we don't overwrite DAMAGED status on return
+                await db.execute("UPDATE equipment SET status = 'NEEDS_INSPECTION' WHERE id = $1 AND status != 'DAMAGED'", [p.equipment_id]);
+            }
+
+            setIsBatchReturnModalOpen(false);
+            setSelectedIds(new Set()); // clear selection
+            if (selectedCohortId) {
+                loadPersonnel(selectedCohortId);
+                refreshData();
+            }
+            alert(`${selectedPersonnel.length}개의 장비가 일괄 반납되었습니다.`);
+
+        } catch (error) {
+            console.error(error);
+            alert("일괄 반납 처리에 실패했습니다.");
         }
     };
 
@@ -446,6 +491,24 @@ export default function CohortsPage() {
         await saveExcelWithDialog(exportData, cohortName, `${cohortName}_장비현황`);
     };
 
+    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.checked) {
+            setSelectedIds(new Set(personnel.map(p => p.personnel_id)));
+        } else {
+            setSelectedIds(new Set());
+        }
+    };
+
+    const handleSelectOne = (id: number) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    };
+
     return (
         <div className="space-y-6 flex flex-col h-full relative">
             <div className="flex justify-between items-center">
@@ -596,10 +659,34 @@ export default function CohortsPage() {
                                     </form>
                                 </div>
 
+                                {selectedIds.size > 0 && (
+                                    <div className="bg-indigo-50 px-4 py-2 flex items-center justify-between border-b border-indigo-100">
+                                        <span className="text-sm font-medium text-indigo-700">
+                                            {selectedIds.size}명 선택됨
+                                        </span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                className="px-3 py-1.5 bg-white border border-indigo-200 text-emerald-700 hover:bg-emerald-50 rounded text-sm font-medium shadow-sm flex items-center gap-1.5 transition-colors"
+                                                onClick={() => setIsBatchReturnModalOpen(true)}
+                                            >
+                                                <CheckCircle2 className="w-3.5 h-3.5" /> 일괄 반납
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="overflow-auto flex-1">
                                     <table className="w-full text-left border-collapse text-sm">
                                         <thead className="sticky top-0 bg-gray-50 z-10 shadow-sm border-b border-gray-200">
                                             <tr className="text-gray-500 uppercase tracking-wider">
+                                                <th className="px-4 py-3 font-medium w-10 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                        checked={personnel.length > 0 && selectedIds.size === personnel.length}
+                                                        onChange={handleSelectAll}
+                                                    />
+                                                </th>
                                                 <th className="px-4 py-3 font-medium w-12">연번</th>
                                                 <th className="px-4 py-3 font-medium w-32">이름</th>
                                                 <th className="px-4 py-3 font-medium">장비종류</th>
@@ -613,7 +700,15 @@ export default function CohortsPage() {
                                                 <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-500">등록된 인원이 없습니다.</td></tr>
                                             ) : (
                                                 personnel.map((p, idx) => (
-                                                    <tr key={`${p.personnel_id}-${p.checkout_id || 'new'}`} className="hover:bg-gray-50/50 group">
+                                                    <tr key={`${p.personnel_id}-${p.checkout_id || 'new'}`} className={`hover:bg-gray-50/50 group ${selectedIds.has(p.personnel_id) ? 'bg-indigo-50/30' : ''}`}>
+                                                        <td className="px-4 py-4 text-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                                checked={selectedIds.has(p.personnel_id)}
+                                                                onChange={() => handleSelectOne(p.personnel_id)}
+                                                            />
+                                                        </td>
                                                         <td className="px-4 py-4 text-gray-500">{idx + 1}</td>
                                                         <td className="px-4 py-4 font-medium text-gray-900">
                                                             {getDisplayName(p)}
@@ -748,6 +843,13 @@ export default function CohortsPage() {
                 onClose={() => setIsUndoModalOpen(false)}
                 onConfirm={submitUndoReturn}
                 undoTarget={undoTarget}
+            />
+
+            <BatchReturnModal
+                isOpen={isBatchReturnModalOpen}
+                onClose={() => setIsBatchReturnModalOpen(false)}
+                onSubmit={submitBatchReturn}
+                selectedCount={selectedIds.size}
             />
         </div>
     );
