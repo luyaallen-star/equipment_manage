@@ -37,29 +37,13 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Prepare signing key
-        shell: bash
-        run: |
-          # Use heredoc syntax to precisely control value boundaries
-          # This avoids trailing newline issues with KEY=VALUE format
-          CLEAN_KEY=$(printf '%s' "$RAW_KEY" | tr -d '\r\n')
-          echo "TAURI_SIGNING_PRIVATE_KEY<<KEYEOF" >> $GITHUB_ENV
-          printf '%s' "$CLEAN_KEY" >> $GITHUB_ENV
-          printf '\n' >> $GITHUB_ENV
-          echo "KEYEOF" >> $GITHUB_ENV
-          echo "Key length: ${#CLEAN_KEY} chars"
-        env:
-          RAW_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
           tagName: "v__VERSION__"
           releaseName: "App v__VERSION__"
           releaseBody: "See the assets to download this version and install."
           releaseDraft: false
           prerelease: false
-          includeUpdaterJson: true

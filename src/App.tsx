@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { initDB } from "./lib/db";
 import Layout from "./components/Layout";
 import { GlobalDataProvider } from "./contexts/GlobalDataContext";
-import Updater from "./components/Updater";
 import "./App.css";
 
 // Placeholder pages
@@ -50,7 +49,6 @@ function App() {
     <BrowserRouter>
       <GlobalDataProvider>
         <Layout>
-          <Updater />
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/equipment" element={<EquipmentPage />} />
